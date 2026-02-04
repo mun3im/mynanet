@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 650">
+  <defs>
+    <linearGradient id="inputGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2E7D32;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="convGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1565C0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="dsconvGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9C27B0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6A1B9A;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="seGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9800;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E65100;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="attGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E91E63;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#AD1457;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="outputGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#607D8B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#37474F;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Title -->
+  <text x="450" y="35" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#333">MynaNet Architecture</text>
+  <text x="450" y="58" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#666">DS-CNN + Squeeze-Excitation + Residual + Attention</text>
+
+  <!-- Input -->
+  <rect x="30" y="90" width="120" height="60" rx="8" fill="url(#inputGrad)" filter="url(#shadow)"/>
+  <text x="90" y="118" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">Input</text>
+  <text x="90" y="135" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">64×300×1</text>
+
+  <!-- Arrow -->
+  <path d="M150 120 L175 120" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#333"/></marker></defs>
+
+  <!-- Conv2D Initial -->
+  <rect x="180" y="90" width="100" height="60" rx="8" fill="url(#convGrad)" filter="url(#shadow)"/>
+  <text x="230" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Conv2D</text>
+  <text x="230" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">3×3, 128ch</text>
+  <text x="230" y="143" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">BN + ReLU</text>
+
+  <!-- Arrow -->
+  <path d="M280 120 L305 120" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- DS-CNN Block 1 -->
+  <g transform="translate(310, 75)">
+    <rect x="0" y="0" width="130" height="90" rx="8" fill="url(#dsconvGrad)" filter="url(#shadow)"/>
+    <text x="65" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">DS-Conv Block 1</text>
+    <text x="65" y="36" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Depthwise 3×3</text>
+    <text x="65" y="50" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Pointwise 1×1</text>
+    <text x="65" y="64" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">192 channels</text>
+    <text x="65" y="82" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FFE0B2">+ SE + Residual</text>
+  </g>
+
+  <!-- Arrow -->
+  <path d="M440 120 L465 120" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- DS-CNN Block 2 -->
+  <g transform="translate(470, 75)">
+    <rect x="0" y="0" width="130" height="90" rx="8" fill="url(#dsconvGrad)" filter="url(#shadow)"/>
+    <text x="65" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">DS-Conv Block 2</text>
+    <text x="65" y="36" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Depthwise 3×3</text>
+    <text x="65" y="50" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Pointwise 1×1</text>
+    <text x="65" y="64" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">156 channels</text>
+    <text x="65" y="82" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FFE0B2">+ SE + Residual</text>
+  </g>
+
+  <!-- Arrow -->
+  <path d="M600 120 L625 120" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- DS-CNN Block 3 -->
+  <g transform="translate(630, 75)">
+    <rect x="0" y="0" width="130" height="90" rx="8" fill="url(#dsconvGrad)" filter="url(#shadow)"/>
+    <text x="65" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">DS-Conv Block 3</text>
+    <text x="65" y="36" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Depthwise 3×3</text>
+    <text x="65" y="50" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Pointwise 1×1</text>
+    <text x="65" y="64" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">384 channels</text>
+    <text x="65" y="82" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FFE0B2">+ SE + Residual</text>
+  </g>
+
+  <!-- Arrow down -->
+  <path d="M760 120 L800 120 L800 220 L90 220 L90 270" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+
+  <!-- Squeeze-Excitation Detail Box -->
+  <g transform="translate(50, 280)">
+    <rect x="0" y="0" width="240" height="130" rx="8" fill="url(#seGrad)" filter="url(#shadow)"/>
+    <text x="120" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">Squeeze-Excitation Block</text>
+    <rect x="15" y="35" width="210" height="85" rx="4" fill="rgba(255,255,255,0.15)"/>
+    <text x="120" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">GlobalAvgPool → Dense(ch/16)</text>
+    <text x="120" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">→ ReLU → Dense(ch)</text>
+    <text x="120" y="89" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">→ Sigmoid → Scale</text>
+    <text x="120" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FFE0B2">Channel attention weights</text>
+  </g>
+
+  <!-- Attention Detail Box -->
+  <g transform="translate(330, 280)">
+    <rect x="0" y="0" width="240" height="130" rx="8" fill="url(#attGrad)" filter="url(#shadow)"/>
+    <text x="120" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">Attention Block</text>
+    <rect x="15" y="35" width="210" height="85" rx="4" fill="rgba(255,255,255,0.15)"/>
+    <text x="120" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">Conv1×1 → BN → ReLU</text>
+    <text x="120" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">→ Conv1×1 → Sigmoid</text>
+    <text x="120" y="89" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">→ Element-wise multiply</text>
+    <text x="120" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FCE4EC">Spatial attention map</text>
+  </g>
+
+  <!-- Residual Detail Box -->
+  <g transform="translate(610, 280)">
+    <rect x="0" y="0" width="240" height="130" rx="8" fill="url(#convGrad)" filter="url(#shadow)"/>
+    <text x="120" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">Residual Connection</text>
+    <rect x="15" y="35" width="210" height="85" rx="4" fill="rgba(255,255,255,0.15)"/>
+    <text x="120" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">If channels match:</text>
+    <text x="120" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">output = input + block(input)</text>
+    <text x="120" y="92" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">Else: 1×1 conv projection</text>
+    <text x="120" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#BBDEFB">Gradient flow preservation</text>
+  </g>
+
+  <!-- Arrow to output section -->
+  <path d="M450 410 L450 440" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Global Average Pooling -->
+  <rect x="350" y="450" width="200" height="50" rx="8" fill="url(#convGrad)" filter="url(#shadow)"/>
+  <text x="450" y="475" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">Global Average Pooling</text>
+  <text x="450" y="492" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">384 → 384</text>
+
+  <!-- Arrow -->
+  <path d="M450 500 L450 520" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Dropout + Dense -->
+  <rect x="350" y="530" width="200" height="50" rx="8" fill="url(#outputGrad)" filter="url(#shadow)"/>
+  <text x="450" y="552" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">Dropout (0.05) + Dense</text>
+  <text x="450" y="572" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">384 → 10 (softmax)</text>
+
+  <!-- Arrow -->
+  <path d="M450 580 L450 600" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Output -->
+  <rect x="380" y="610" width="140" height="35" rx="8" fill="url(#inputGrad)" filter="url(#shadow)"/>
+  <text x="450" y="633" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">10 Classes</text>
+
+  <!-- Stats Box -->
+  <g transform="translate(700, 450)">
+    <rect x="0" y="0" width="170" height="130" rx="8" fill="#f5f5f5" stroke="#ddd" stroke-width="1"/>
+    <text x="85" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333">Model Stats</text>
+    <line x1="10" y1="32" x2="160" y2="32" stroke="#ddd" stroke-width="1"/>
+    <text x="15" y="52" font-family="Arial, sans-serif" font-size="10" fill="#555">Parameters: ~420K</text>
+    <text x="15" y="70" font-family="Arial, sans-serif" font-size="10" fill="#555">INT8 Size: &lt;512KB</text>
+    <text x="15" y="88" font-family="Arial, sans-serif" font-size="10" fill="#555">Input: 64×300 mel</text>
+    <text x="15" y="106" font-family="Arial, sans-serif" font-size="10" fill="#555">Accuracy: 94.5%</text>
+    <text x="15" y="124" font-family="Arial, sans-serif" font-size="10" fill="#555">Target: Cortex-M7</text>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(30, 450)">
+    <rect x="0" y="0" width="170" height="130" rx="8" fill="#f5f5f5" stroke="#ddd" stroke-width="1"/>
+    <text x="85" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333">Legend</text>
+    <line x1="10" y1="32" x2="160" y2="32" stroke="#ddd" stroke-width="1"/>
+    <rect x="15" y="42" width="20" height="12" rx="2" fill="url(#convGrad)"/>
+    <text x="42" y="52" font-family="Arial, sans-serif" font-size="10" fill="#555">Standard Conv</text>
+    <rect x="15" y="60" width="20" height="12" rx="2" fill="url(#dsconvGrad)"/>
+    <text x="42" y="70" font-family="Arial, sans-serif" font-size="10" fill="#555">Depthwise Sep Conv</text>
+    <rect x="15" y="78" width="20" height="12" rx="2" fill="url(#seGrad)"/>
+    <text x="42" y="88" font-family="Arial, sans-serif" font-size="10" fill="#555">Squeeze-Excitation</text>
+    <rect x="15" y="96" width="20" height="12" rx="2" fill="url(#attGrad)"/>
+    <text x="42" y="106" font-family="Arial, sans-serif" font-size="10" fill="#555">Attention</text>
+    <rect x="15" y="114" width="20" height="12" rx="2" fill="url(#inputGrad)"/>
+    <text x="42" y="124" font-family="Arial, sans-serif" font-size="10" fill="#555">Input/Output</text>
+  </g>
+</svg>

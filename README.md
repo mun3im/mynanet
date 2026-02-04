@@ -5,6 +5,9 @@ Lightweight audio-focused CNN for bird call classification on edge devices (Cort
 ## Model Architecture
 
 **DS-CNN + Squeeze-Excitation + Residual + Attention**
+
+![MynaNet Architecture](architecture.svg)
+
 - ~420K parameters
 - <512KB INT8 model size
 - 64x300 mel spectrogram input (3 seconds @ 16kHz)
