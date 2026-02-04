@@ -1,6 +1,6 @@
 # MynaNet
 
-Lightweight bird call classifier for edge deployment on Cortex-M7 MCUs.
+Lightweight audio-focused CNN for bird call classification on edge devices (Cortex-M7 MCUs).
 
 ## Model Architecture
 
@@ -29,7 +29,7 @@ python 1e_dscnn_se_res_att_wide.py \
 ## Dataset
 
 10 Southeast Asian bird species, 600 samples per class (6000 total).
-CSV-based splits ensure source-based separation (no data leakage from same recording).
+Dataset creation and validation scripts are in [mun3im/seabird](https://github.com/mun3im/seabird).
 
 ## Results Directory Structure
 
