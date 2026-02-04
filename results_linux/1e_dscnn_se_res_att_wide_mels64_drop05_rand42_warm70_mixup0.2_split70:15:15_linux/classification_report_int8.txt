@@ -1,0 +1,19 @@
+INT8 Model Classification Report
+======================================================================
+
+                           precision    recall  f1-score   support
+
+             Spotted Dove     0.9773    0.9556    0.9663        90
+               Asian Koel     0.9211    0.7778    0.8434        90
+              Common Myna     0.8646    0.9222    0.8925        90
+      Collared Kingfisher     0.9535    0.9111    0.9318        90
+               Zebra Dove     0.9158    0.9667    0.9405        90
+        Common Tailorbird     0.9663    0.9556    0.9609        90
+    Large-tailed Nightjar     1.0000    0.9222    0.9595        90
+White-throated Kingfisher     0.9444    0.9444    0.9444        90
+              Common Iora     0.8265    0.9000    0.8617        90
+     Olive-backed Sunbird     0.9091    1.0000    0.9524        90
+
+                 accuracy                         0.9256       900
+                macro avg     0.9279    0.9256    0.9253       900
+             weighted avg     0.9279    0.9256    0.9253       900

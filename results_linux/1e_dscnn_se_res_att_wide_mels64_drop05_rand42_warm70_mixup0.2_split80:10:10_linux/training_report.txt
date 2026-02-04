@@ -1,0 +1,462 @@
+================================================================================
+MODEL 1E: DS-CNN + SE + RESIDUAL (ALL BLOCKS) + ATTENTION + WIDER CHANNELS
+================================================================================
+Training started: 2026-02-03 09:12:56
+Platform: Linux x86_64
+Python: 3.10.19
+TensorFlow: 2.15.0
+Keras: 2.15.0
+
+
+================================================================================
+HYPERPARAMETERS
+================================================================================
+
+System Configuration:
+  Platform: Linux x86_64
+  GPU: 1 device(s) detected
+  GPU Memory: Dynamic growth enabled
+
+Audio Processing:
+  Target Sample Rate:     16000 Hz
+  Audio Length:           3 seconds (48000 samples)
+  FFT Size (N_FFT):       512
+  FFT Window:             Hann (YAMNet standard, reduces spectral leakage)
+  Window Length:          400 samples (25ms at 16kHz)
+  Hop Length:             160 samples (10.0 ms)
+  Mel Bins (N_MELS):      64
+  Max Frequency (FMAX):   8000 Hz
+  Time Frames:            300 (FIXED)
+  Spectrogram Shape:      64x300
+  Center Padding:         Enabled (librosa center=True)
+
+Model Architecture:
+  Model Type:             DS-CNN + SE + Residual (All) + Attention (Model 1e)
+  Channels:               128→192→156→384
+  Dropout Rate:           0.05
+  Input Shape:            (64, 300, 1)
+  Conv Blocks:            4 DS blocks + 1 initial conv
+  DS-Conv:                DepthwiseConv2D(3×3) + Conv2D(1×1)
+  Kernel Size:            3×3 (depthwise spatial)
+  Pooling:                MaxPool2D (2×2) after each DS block
+  Activation:             ReLU6 (quantization-friendly)
+  Global Pooling:         GlobalAveragePooling2D
+  Dense Layers:           192 → 10 (classification head)
+
+Training Configuration:
+  Random Seed:            42
+  Warmup Epochs:          70
+  Fine-tune Epochs:       20
+  Total Epochs:           90
+  Batch Size:             32
+  Warmup Learning Rate:   0.001
+  Fine-tune Learning Rate:1e-05
+  LR Schedule:            cosine
+  Optimizer:              AdamW
+  Loss Function:          Sparse Categorical Crossentropy
+
+Data Augmentation:
+  Mode:                   mixup
+  Type:                   Mixup
+  Alpha:                  0.2
+  Data Multiplier:        2x (original + mixup)
+
+Quantization:
+  Method:                 Post-Training Quantization (PTQ)
+  Target Format:          INT8 TFLite
+  Calibration Samples:    200
+  Input/Output Type:      INT8
+
+Deployment Target:
+  Platform:               ARM Cortex-M7
+  Memory Target:          <512 KB (50% of 1MB)
+
+Data Paths:
+  Splits CSV:             /Volumes/Evo/seabird_splits_80_10_10.csv
+  Flat Directory:         /Volumes/Evo/seabird16k_flat
+  Spectrogram Cache:      /Volumes/Evo/precompute/seabird_spectrograms_16k_mels64
+  Output Directory:       results_linux/1e_dscnn_se_res_att_wide_mels64_drop05_rand42_warm70_mixup0.2_split80:10:10_linux
+
+================================================================================
+DATASET INFORMATION
+================================================================================
+
+Total Samples:          6000
+Number of Classes:      10
+
+Data Split (Fixed per-class):
+  Training:             4800 (80.0%)
+  Validation:           600 (10.0%)
+  Test:                 600 (10.0%)
+
+Class Distribution:
+  Spotted Dove                  :   600 samples (10.00%)
+  Asian Koel                    :   600 samples (10.00%)
+  Common Myna                   :   600 samples (10.00%)
+  Collared Kingfisher           :   600 samples (10.00%)
+  Zebra Dove                    :   600 samples (10.00%)
+  Common Iora                   :   600 samples (10.00%)
+  Common Tailorbird             :   600 samples (10.00%)
+  Large-tailed Nightjar         :   600 samples (10.00%)
+  Olive-backed Sunbird          :   600 samples (10.00%)
+  White-throated Kingfisher     :   600 samples (10.00%)
+
+================================================================================
+MODEL ARCHITECTURE
+================================================================================
+
+Model: "MynaNet_DSCNN_SE_Res_Att_Wide"
+__________________________________________________________________________________________________
+ Layer (type)                Output Shape                 Param #   Connected to                  
+==================================================================================================
+ input (InputLayer)          [(None, 64, 300, 1)]         0         []                            
+                                                                                                  
+ initial_conv (Conv2D)       (None, 64, 300, 128)         1152      ['input[0][0]']               
+                                                                                                  
+ initial_bn (BatchNormaliza  (None, 64, 300, 128)         512       ['initial_conv[0][0]']        
+ tion)                                                                                            
+                                                                                                  
+ initial_relu (ReLU)         (None, 64, 300, 128)         0         ['initial_bn[0][0]']          
+                                                                                                  
+ block1_depthwise (Depthwis  (None, 64, 300, 128)         1152      ['initial_relu[0][0]']        
+ eConv2D)                                                                                         
+                                                                                                  
+ block1_depthwise_bn (Batch  (None, 64, 300, 128)         512       ['block1_depthwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block1_depthwise_relu (ReL  (None, 64, 300, 128)         0         ['block1_depthwise_bn[0][0]'] 
+ U)                                                                                               
+                                                                                                  
+ block1_pointwise (Conv2D)   (None, 64, 300, 128)         16384     ['block1_depthwise_relu[0][0]'
+                                                                    ]                             
+                                                                                                  
+ block1_pointwise_bn (Batch  (None, 64, 300, 128)         512       ['block1_pointwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block1_se_squeeze (GlobalA  (None, 1, 1, 128)            0         ['block1_pointwise_bn[0][0]'] 
+ veragePooling2D)                                                                                 
+                                                                                                  
+ block1_se_reduce (Conv2D)   (None, 1, 1, 16)             2064      ['block1_se_squeeze[0][0]']   
+                                                                                                  
+ block1_se_expand (Conv2D)   (None, 1, 1, 128)            2176      ['block1_se_reduce[0][0]']    
+                                                                                                  
+ block1_se_scale (Multiply)  (None, 64, 300, 128)         0         ['block1_pointwise_bn[0][0]', 
+                                                                     'block1_se_expand[0][0]']    
+                                                                                                  
+ block1_residual (Add)       (None, 64, 300, 128)         0         ['block1_se_scale[0][0]',     
+                                                                     'initial_relu[0][0]']        
+                                                                                                  
+ block1_relu (ReLU)          (None, 64, 300, 128)         0         ['block1_residual[0][0]']     
+                                                                                                  
+ pool1 (MaxPooling2D)        (None, 32, 150, 128)         0         ['block1_relu[0][0]']         
+                                                                                                  
+ drop1 (Dropout)             (None, 32, 150, 128)         0         ['pool1[0][0]']               
+                                                                                                  
+ block2_depthwise (Depthwis  (None, 32, 150, 128)         1152      ['drop1[0][0]']               
+ eConv2D)                                                                                         
+                                                                                                  
+ block2_depthwise_bn (Batch  (None, 32, 150, 128)         512       ['block2_depthwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block2_depthwise_relu (ReL  (None, 32, 150, 128)         0         ['block2_depthwise_bn[0][0]'] 
+ U)                                                                                               
+                                                                                                  
+ block2_pointwise (Conv2D)   (None, 32, 150, 192)         24576     ['block2_depthwise_relu[0][0]'
+                                                                    ]                             
+                                                                                                  
+ block2_pointwise_bn (Batch  (None, 32, 150, 192)         768       ['block2_pointwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block2_se_squeeze (GlobalA  (None, 1, 1, 192)            0         ['block2_pointwise_bn[0][0]'] 
+ veragePooling2D)                                                                                 
+                                                                                                  
+ block2_se_reduce (Conv2D)   (None, 1, 1, 16)             3088      ['block2_se_squeeze[0][0]']   
+                                                                                                  
+ block2_se_expand (Conv2D)   (None, 1, 1, 192)            3264      ['block2_se_reduce[0][0]']    
+                                                                                                  
+ block2_residual_proj (Conv  (None, 32, 150, 192)         24576     ['drop1[0][0]']               
+ 2D)                                                                                              
+                                                                                                  
+ block2_se_scale (Multiply)  (None, 32, 150, 192)         0         ['block2_pointwise_bn[0][0]', 
+                                                                     'block2_se_expand[0][0]']    
+                                                                                                  
+ block2_residual_proj_bn (B  (None, 32, 150, 192)         768       ['block2_residual_proj[0][0]']
+ atchNormalization)                                                                               
+                                                                                                  
+ block2_residual (Add)       (None, 32, 150, 192)         0         ['block2_se_scale[0][0]',     
+                                                                     'block2_residual_proj_bn[0][0
+                                                                    ]']                           
+                                                                                                  
+ block2_relu (ReLU)          (None, 32, 150, 192)         0         ['block2_residual[0][0]']     
+                                                                                                  
+ pool2 (MaxPooling2D)        (None, 16, 75, 192)          0         ['block2_relu[0][0]']         
+                                                                                                  
+ drop2 (Dropout)             (None, 16, 75, 192)          0         ['pool2[0][0]']               
+                                                                                                  
+ block3_depthwise (Depthwis  (None, 16, 75, 192)          1728      ['drop2[0][0]']               
+ eConv2D)                                                                                         
+                                                                                                  
+ block3_depthwise_bn (Batch  (None, 16, 75, 192)          768       ['block3_depthwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block3_depthwise_relu (ReL  (None, 16, 75, 192)          0         ['block3_depthwise_bn[0][0]'] 
+ U)                                                                                               
+                                                                                                  
+ block3_pointwise (Conv2D)   (None, 16, 75, 156)          29952     ['block3_depthwise_relu[0][0]'
+                                                                    ]                             
+                                                                                                  
+ block3_pointwise_bn (Batch  (None, 16, 75, 156)          624       ['block3_pointwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block3_se_squeeze (GlobalA  (None, 1, 1, 156)            0         ['block3_pointwise_bn[0][0]'] 
+ veragePooling2D)                                                                                 
+                                                                                                  
+ block3_se_reduce (Conv2D)   (None, 1, 1, 9)              1413      ['block3_se_squeeze[0][0]']   
+                                                                                                  
+ block3_se_expand (Conv2D)   (None, 1, 1, 156)            1560      ['block3_se_reduce[0][0]']    
+                                                                                                  
+ block3_residual_proj (Conv  (None, 16, 75, 156)          29952     ['drop2[0][0]']               
+ 2D)                                                                                              
+                                                                                                  
+ block3_se_scale (Multiply)  (None, 16, 75, 156)          0         ['block3_pointwise_bn[0][0]', 
+                                                                     'block3_se_expand[0][0]']    
+                                                                                                  
+ block3_residual_proj_bn (B  (None, 16, 75, 156)          624       ['block3_residual_proj[0][0]']
+ atchNormalization)                                                                               
+                                                                                                  
+ block3_residual (Add)       (None, 16, 75, 156)          0         ['block3_se_scale[0][0]',     
+                                                                     'block3_residual_proj_bn[0][0
+                                                                    ]']                           
+                                                                                                  
+ block3_relu (ReLU)          (None, 16, 75, 156)          0         ['block3_residual[0][0]']     
+                                                                                                  
+ pool3 (MaxPooling2D)        (None, 8, 37, 156)           0         ['block3_relu[0][0]']         
+                                                                                                  
+ drop3 (Dropout)             (None, 8, 37, 156)           0         ['pool3[0][0]']               
+                                                                                                  
+ block4_depthwise (Depthwis  (None, 8, 37, 156)           1404      ['drop3[0][0]']               
+ eConv2D)                                                                                         
+                                                                                                  
+ block4_depthwise_bn (Batch  (None, 8, 37, 156)           624       ['block4_depthwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block4_depthwise_relu (ReL  (None, 8, 37, 156)           0         ['block4_depthwise_bn[0][0]'] 
+ U)                                                                                               
+                                                                                                  
+ block4_pointwise (Conv2D)   (None, 8, 37, 384)           59904     ['block4_depthwise_relu[0][0]'
+                                                                    ]                             
+                                                                                                  
+ block4_pointwise_bn (Batch  (None, 8, 37, 384)           1536      ['block4_pointwise[0][0]']    
+ Normalization)                                                                                   
+                                                                                                  
+ block4_se_squeeze (GlobalA  (None, 1, 1, 384)            0         ['block4_pointwise_bn[0][0]'] 
+ veragePooling2D)                                                                                 
+                                                                                                  
+ block4_se_reduce (Conv2D)   (None, 1, 1, 16)             6160      ['block4_se_squeeze[0][0]']   
+                                                                                                  
+ block4_se_expand (Conv2D)   (None, 1, 1, 384)            6528      ['block4_se_reduce[0][0]']    
+                                                                                                  
+ block4_residual_proj (Conv  (None, 8, 37, 384)           59904     ['drop3[0][0]']               
+ 2D)                                                                                              
+                                                                                                  
+ block4_se_scale (Multiply)  (None, 8, 37, 384)           0         ['block4_pointwise_bn[0][0]', 
+                                                                     'block4_se_expand[0][0]']    
+                                                                                                  
+ block4_residual_proj_bn (B  (None, 8, 37, 384)           1536      ['block4_residual_proj[0][0]']
+ atchNormalization)                                                                               
+                                                                                                  
+ block4_residual (Add)       (None, 8, 37, 384)           0         ['block4_se_scale[0][0]',     
+                                                                     'block4_residual_proj_bn[0][0
+                                                                    ]']                           
+                                                                                                  
+ block4_relu (ReLU)          (None, 8, 37, 384)           0         ['block4_residual[0][0]']     
+                                                                                                  
+ pool4 (MaxPooling2D)        (None, 4, 18, 384)           0         ['block4_relu[0][0]']         
+                                                                                                  
+ drop4 (Dropout)             (None, 4, 18, 384)           0         ['pool4[0][0]']               
+                                                                                                  
+ reshape_for_attention (Res  (None, 72, 384)              0         ['drop4[0][0]']               
+ hape)                                                                                            
+                                                                                                  
+ attention_proj (Dense)      (None, 72, 96)               36960     ['reshape_for_attention[0][0]'
+                                                                    ]                             
+                                                                                                  
+ enhanced_mhsa (MultiHeadAt  (None, 72, 96)               74400     ['attention_proj[0][0]',      
+ tention)                                                            'attention_proj[0][0]']      
+                                                                                                  
+ add (Add)                   (None, 72, 96)               0         ['attention_proj[0][0]',      
+                                                                     'enhanced_mhsa[0][0]']       
+                                                                                                  
+ att_ln (LayerNormalization  (None, 72, 96)               192       ['add[0][0]']                 
+ )                                                                                                
+                                                                                                  
+ global_pool_att (GlobalAve  (None, 96)                   0         ['att_ln[0][0]']              
+ ragePooling1D)                                                                                   
+                                                                                                  
+ fc1 (Dense)                 (None, 192)                  18624     ['global_pool_att[0][0]']     
+                                                                                                  
+ fc1_bn (BatchNormalization  (None, 192)                  768       ['fc1[0][0]']                 
+ )                                                                                                
+                                                                                                  
+ fc1_relu (ReLU)             (None, 192)                  0         ['fc1_bn[0][0]']              
+                                                                                                  
+ fc_drop (Dropout)           (None, 192)                  0         ['fc1_relu[0][0]']            
+                                                                                                  
+ output (Dense)              (None, 10)                   1930      ['fc_drop[0][0]']             
+                                                                                                  
+==================================================================================================
+Total params: 420259 (1.60 MB)
+Trainable params: 415227 (1.58 MB)
+Non-trainable params: 5032 (19.66 KB)
+__________________________________________________________________________________________________
+
+Parameter Summary:
+  Total Parameters:       420,259
+  Trainable Parameters:   415,227
+  Non-trainable Params:   5,032
+
+Estimated Model Sizes:
+  FP32 (4 bytes/param):   1.60 MB
+  INT8 (1 byte/param):    410.4 KB
+
+  Model size within 512 KB target
+
+================================================================================
+STAGE 1: WARMUP TRAINING
+================================================================================
+
+Stage Duration: 56m 10s
+
+Training History:
+  Epochs Completed:       70
+  Final Train Loss:       0.3330
+  Final Train Accuracy:   0.9767
+  Final Val Loss:         0.2105
+  Final Val Accuracy:     0.9583
+  Best Val Loss:          0.2045
+  Best Val Accuracy:      0.9600
+
+================================================================================
+STAGE 2: FINE-TUNING
+================================================================================
+
+Stage Duration: 15m 21s
+
+Training History:
+  Epochs Completed:       20
+  Final Train Loss:       0.3700
+  Final Train Accuracy:   0.9727
+  Final Val Loss:         0.2128
+  Final Val Accuracy:     0.9550
+  Best Val Loss:          0.2059
+  Best Val Accuracy:      0.9600
+
+================================================================================
+EVALUATION: FP32 (.keras)
+================================================================================
+
+FP32 (.keras) Evaluation:
+  Test Accuracy:          94.33%
+  Classification Report:  results_linux/1e_dscnn_se_res_att_wide_mels64_drop05_rand42_warm70_mixup0.2_split80:10:10_linux/classification_report_fp32.txt
+
+================================================================================
+TFLITE CONVERSION (PTQ)
+================================================================================
+
+================================================================================
+EVALUATION: INT8 TFLite
+================================================================================
+
+INT8 TFLite Evaluation:
+  Test Accuracy:          94.50%
+  Classification Report:  results_linux/1e_dscnn_se_res_att_wide_mels64_drop05_rand42_warm70_mixup0.2_split80:10:10_linux/classification_report_int8.txt
+
+================================================================================
+FINAL RESULTS SUMMARY
+================================================================================
+
+================================================================================
+QUICK REFERENCE (Copy to spreadsheet)
+================================================================================
+Config: model1e_drp0_mixup_warmup70_finetune20_lrcosine
+FP32: 94.33% | INT8: 94.50% | Drop: -0.17% | Time: 1h 14m 27s
+
+--------------------------------------------------------------------------------
+DETAILED RESULTS
+--------------------------------------------------------------------------------
+
+Accuracy Results:
+  FP32 (.keras):           94.33%
+  INT8 (TFLite):           94.50%
+
+Accuracy Change (INT8 vs FP32):
+  Drop:                    -0.17% ✓ Excellent (no degradation)
+
+Model Sizes:
+  FP32 (.keras)       : 5.05 MB
+  INT8 (.tflite)      : 528.9 KB
+
+Training Metrics:
+  Best Warmup Val Acc:     96.00%
+  Best Finetune Val Acc:   96.00%
+  Final Train Acc:         97.27%
+  Final Val Acc:           95.50%
+  Train-Test Gap:          +2.77%
+  Train-Val Gap:           +1.77% ✓ No overfitting
+
+Execution Time:
+  Total Duration:         1h 14m 27s
+
+Training completed: 2026-02-03 10:27:24
+
+================================================================================
+CSV FORMAT (for batch comparison)
+================================================================================
+model_type,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb
+1e_dscnn_se_res_att_wide,0.05,mixup,70,20,0.001,1e-05,cosine,94.33,94.50,-0.17,96.00,1.77,4467,528.9
+
+================================================================================
+CORTEX-M7 DEPLOYMENT ASSESSMENT
+================================================================================
+
+Deployment Criteria:
+  Model Size:             528.9 KB >= 512 KB
+  INT8 Accuracy:          94.50% >= 90%
+
+  ACCURACY OK, BUT MODEL TOO LARGE (>512KB)
+
+Cortex-M7 @ 480 MHz Estimates:
+  Estimated MACs:         830,454
+  Estimated Latency:      0.12 ms
+  Active Power:           ~120 mW
+  Energy per Inference:   ~0.014 mJ
+  Real-time capable (< 100ms latency)
+
+================================================================================
+ANALYSIS & RECOMMENDATIONS
+================================================================================
+
+Current Performance: 94.50%
+  ✓ GOOD - Solid performance with room for improvement
+
+Quantization Method:
+  Method: Post-Training Quantization (PTQ)
+  INT8 vs FP32: -0.17%
+
+Model Architecture:
+  DS-CNN + SE + Residual (All) + Attention (Model 1e)
+  - 4 DS-Conv blocks: 128→192→256→384 filters
+  - Squeeze-and-Excitation (SE) modules in every block
+  - Residual connections in ALL 4 blocks (with 1×1 projection where needed)
+  - DS-Conv = DepthwiseConv(3×3) + PointwiseConv(1×1)
+  - Lightweight MHSA: 2 heads, 32 key_dim, projected to 64 dims
+  - GlobalAveragePooling1D + Dense(128) classifier
+  - ReLU6 + BatchNorm (quantization-friendly)
+
+Augmentation Strategy:
+  Current Mode: mixup
+  Alpha: 0.2
+  Recommendation: Try different alpha values (0.1-0.4)
+
+Learning Rate Schedule:
+  Current: cosine

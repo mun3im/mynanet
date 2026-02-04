@@ -1,0 +1,19 @@
+FP32 Model Classification Report
+======================================================================
+
+                           precision    recall  f1-score   support
+
+             Spotted Dove     0.9773    0.9556    0.9663        90
+               Asian Koel     0.9342    0.7889    0.8554        90
+              Common Myna     0.8737    0.9222    0.8973        90
+      Collared Kingfisher     0.9535    0.9111    0.9318        90
+               Zebra Dove     0.9158    0.9667    0.9405        90
+        Common Tailorbird     0.9451    0.9556    0.9503        90
+    Large-tailed Nightjar     1.0000    0.9222    0.9595        90
+White-throated Kingfisher     0.9457    0.9667    0.9560        90
+              Common Iora     0.8438    0.9000    0.8710        90
+     Olive-backed Sunbird     0.9184    1.0000    0.9574        90
+
+                 accuracy                         0.9289       900
+                macro avg     0.9307    0.9289    0.9286       900
+             weighted avg     0.9307    0.9289    0.9286       900
