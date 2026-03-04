@@ -51,7 +51,7 @@ python mynanet_v1.py \
 ## Dataset
 
 10 Southeast Asian bird species, 600 samples per class (6000 total).
-Dataset creation and validation scripts are in [mun3im/seabird](https://github.com/mun3im/seabird).
+Dataset creation and validation scripts are in [mun3im/seabird](https://github.com/mun3im/mygardenbird).
 
 ## Model Evolution
 
