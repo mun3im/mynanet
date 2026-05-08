@@ -74,18 +74,18 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 
 ### Summary (n=3 seeds)
 
-| Model | Description | INT8 KB | Linux FP32 ±sd | Linux INT8 ±sd | Linux Runtime | macOS FP32 ±sd | macOS INT8 ±sd | macOS Runtime | Δ prev MCU | MCU |
-|-------|-------------|---------|---------------|---------------|--------------|---------------|---------------|--------------|------------|-----|
-| 1a | Baseline 2D CNN | 1629.9 | 93.33 ± 0.34 | 93.33 ± 0.20 | 28m | 93.52 ± 1.34 | 93.29 ± 1.08 | 42m | — | ✗† |
-| 1b | DS-CNN | 289.7 | 92.96 ± 0.52 | 93.06 ± 0.57 | 29m | 92.50 ± 1.05 | 92.36 ± 1.23 | 35m | baseline | ✓ |
-| 1c | DS+SE | 376.9 | 93.75 ± 0.85 | 93.61 ± 0.60 | 33m | 93.94 ± 0.40 | 93.84 ± 0.21 | 1h 05m | +0.55 | ✓ |
-| 1d | DS+Res | 294.8 | 93.24 ± 0.47 | 93.10 ± 0.67 | 32m | 92.18 ± 0.44 | 92.27 ± 0.29 | 46m | −0.51 | ✓ |
-| 1e | DS+SE+Res | 377.2 | 94.12 ± 0.52 | 94.12 ± 0.28 | 40m | 92.27 ± 1.37 | 92.41 ± 0.88 | 1h 04m | +1.02 | ✓ |
-| 1f | DS+SE+Res+Wide (no Att) | 455.3 | 93.80 ± 0.33 | 93.61 ± 0.49 | 1h 16m | 92.73 ± 0.98 | 92.73 ± 1.05 | 1h 59m | −0.51 | ✓ |
-| 1g | DS+SE+Res+Att | 371.8 | 94.26 ± 0.28 | 94.21 ± 0.36 | 26m | 94.67 ± 0.08 | 94.72 ± 0.24 | 49m | — | ✗ |
-| 1h | DS+SE+Res+Att+Wide | 529.3 | 94.03 ± 0.63 | 93.89 ± 0.52 | 1h 08m | 95.32 ± 0.49 | 95.14 ± 0.24 | 2h 07m | — | ✗‡ |
-| 1i | MBV2 Inv.Res+SE | 258.7 | 93.89 ± 0.34 | 94.03 ± 0.41 | 23m | 94.49 ± 0.21 | 94.26 ± 0.44 | 42m | +0.42 | ✓ |
-| 1j | MBV3-SE (5×5 dw) | ~270 | pending | pending | — | — | — | — | — | ✓ |
+| Model | Description             | INT8 KB | Linux FP32 ±sd | Linux INT8 ±sd   | Linux Runtime | macOS FP32 ±sd | macOS INT8 ±sd   | macOS Runtime | Δ prev MCU | MCU |
+| ----- | ----------------------- | ------- | -------------- | ---------------- | ------------- | -------------- | ---------------- | ------------- | ---------- | --- |
+| 1a    | Baseline 2D CNN         | 1629.9  | 93.33 ± 0.34   | 93.33 ± 0.20     | 28m           | 93.52 ± 1.34   | 93.29 ± 1.08     | 42m           | —          | ✗†  |
+| 1b    | DS-CNN                  | 289.7   | 92.96 ± 0.52   | 93.06 ± 0.57     | 29m           | 92.50 ± 1.05   | 92.36 ± 1.23     | 35m           | baseline   | ✓   |
+| 1c    | DS+SE                   | 376.9   | 93.75 ± 0.85   | 93.61 ± 0.60     | 33m           | 93.94 ± 0.40   | 93.84 ± 0.21     | 1h 05m        | +0.55      | ✓   |
+| 1d    | DS+Res                  | 294.8   | 93.24 ± 0.47   | 93.10 ± 0.67     | 32m           | 92.18 ± 0.44   | 92.27 ± 0.29     | 46m           | −0.51      | ✓   |
+| 1e    | DS+SE+Res               | 377.2   | 94.12 ± 0.52   | **94.12** ± 0.28 | 40m           | 92.27 ± 1.37   | 92.41 ± 0.88     | 1h 04m        | +1.02      | ✓   |
+| 1f    | DS+SE+Res+Wide (no Att) | 455.3   | 93.80 ± 0.33   | 93.61 ± 0.49     | 1h 16m        | 92.73 ± 0.98   | 92.73 ± 1.05     | 1h 59m        | −0.51      | ✓   |
+| 1g    | DS+SE+Res+Att           | 371.8   | 94.26 ± 0.28   | 94.21 ± 0.36     | 26m           | 94.67 ± 0.08   | 94.72 ± 0.24     | 49m           | —          | ✗   |
+| 1h    | DS+SE+Res+Att+Wide      | 529.3   | 94.03 ± 0.63   | 93.89 ± 0.52     | 1h 08m        | 95.32 ± 0.49   | 95.14 ± 0.24     | 2h 07m        | —          | ✗‡  |
+| 1i    | MBV2 Inv.Res+SE         | 258.7   | 93.89 ± 0.34   | 94.03 ± 0.41     | 23m           | 94.49 ± 0.21   | **94.26** ± 0.44 | 42m           | +0.42      | ✓   |
+| 1j    | MBV3-SE (5×5 dw)        | ~270    | pending        | pending          | —             | —              | —                | —             | —          | ✓   |
 
 > † 1a: 1629.9 KB — 3× over H7 512 KB flash limit
 > ‡ 1h: 529.3 KB — exceeds H7 512 KB limit; BATCH_MATMUL also unsupported
@@ -108,25 +108,58 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 ## Series 2 — TCN ablation chain
 
 Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmup=50 · mixup=0.2
-⚠ WARNING: Large FP32→INT8 drop observed — likely Metal/hard-swish quantization issue (same as Series 3). FP32 results more reliable.
+⚠ WARNING: Large FP32→INT8 drop observed — likely Metal quantization issue (same as Series 3). FP32 results more reliable.
 
 ### Per-seed results
 
-| Model | Description | INT8 KB | Seed | FP32 % | INT8 % | Runtime | MCU |
-|-------|-------------|---------|------|--------|--------|---------|-----|
-| 2a | TCN Baseline | 526.8 | 42 | 60.83 | 45.56 | 38m | — |
+| Model | Description | INT8 KB | Seed | macOS FP32 % | macOS INT8 % | macOS Runtime | MCU |
+|-------|-------------|---------|------|-------------|-------------|--------------|-----|
+| 2a | TCN Baseline | 526.8 | 42 | 60.83 | 45.56 | 38m | ✗ (>512KB) |
 | 2a | | | 100 | 67.36 | 39.17 | 35m | |
 | 2a | | | 786 | 60.42 | 38.89 | 36m | |
+| 2b | TCN Shallow | 452.6 | 42 | 55.42 | 28.33 | 29m | ✓ (flash) |
+| 2b | | | 100 | 63.47 | 14.03 | 26m | |
+| 2b | | | 786 | 66.67 | 33.06 | 28m | |
+| 2c | TCN No Residual | 524.4 | 42 | 74.31 | 55.83 | 36m | ✗ (>512KB) |
+| 2c | | | 100 | 78.06 | 45.00 | 36m | |
+| 2c | | | 786 | 71.25 | 41.25 | 23m | |
+| 2d | TCN Lightweight | 133.1 | 42 | 40.69 | 32.92 | 15m | ✓ (flash) |
+| 2d | | | 100 | 35.14 | 34.58 | 12m | |
+| 2d | | | 786 | 41.53 | 26.94 | 12m | |
+| 2e | TCN Wide | 526.8 | 42 | 38.06 | 19.44 | 36m | ✗ (>512KB) |
+| 2e | | | 100 | 64.03 | 30.00 | 35m | |
+| 2e | | | 786 | 46.67 | 25.56 | 35m | |
+| 2f | TCN Deep | 765.4 | 42 | 56.81 | 46.25 | 1h13m | ✗ (>512KB) |
+| 2f | | | 100 | 50.97 | 31.25 | 1h12m | |
+| 2f | | | 786 | 46.94 | 22.50 | 59m | |
+| 2g | TCN Kernel=2 | 430.8 | 42 | 55.42 | 9.86 | 32m | ✓ (flash) |
+| 2g | | | 100 | 54.03 | 16.39 | 32m | |
+| 2g | | | 786 | 62.92 | 28.06 | 28m | |
+| 2h | TCN Kernel=5 | 718.8 | 42 | 65.00 | 20.14 | 36m | ✗ (>512KB) |
+| 2h | | | 100 | 67.50 | 24.72 | 36m | |
+| 2h | | | 786 | 62.50 | 9.17 | 36m | |
+| 2k | TCN + SE | 1480.1 | 42 | 43.19 | 13.47 | 54m | ✗ (>512KB) |
+| 2k | | | 100 | — | — | incomplete | |
 
-### Summary (n=3 seeds)
+### Summary (n=3 seeds unless noted)
 
-| Model | Description | INT8 KB | FP32 mean±sd | INT8 mean±sd | Runtime mean | MCU |
-|-------|-------------|---------|--------------|--------------|--------------|-----|
+| Model | Description | INT8 KB | macOS FP32 ±sd | macOS INT8 ±sd | macOS Runtime | MCU |
+|-------|-------------|---------|----------------|----------------|--------------|-----|
 | 2a | TCN Baseline | 526.8 | 62.87 ± 3.89 | 41.21 ± 3.77† | 36m | ✗ (>512KB) |
+| 2b | TCN Shallow | 452.6 | 61.85 ± 5.80 | 25.14 ± 9.91† | 28m | ✓ (flash) |
+| 2c | TCN No Residual | 524.4 | 74.54 ± 3.41 | 47.36 ± 7.57† | 32m | ✗ (>512KB) |
+| 2d | TCN Lightweight | 133.1 | 39.12 ± 3.47 | 31.48 ± 4.02† | 13m | ✓ (flash) |
+| 2e | TCN Wide | 526.8 | 49.59 ± 13.23 | 25.00 ± 5.30† | 35m | ✗ (>512KB) |
+| 2f | TCN Deep | 765.4 | 51.57 ± 4.96 | 33.33 ± 12.01† | 1h08m | ✗ (>512KB) |
+| 2g | TCN Kernel=2 | 430.8 | 57.46 ± 4.78 | 18.10 ± 9.22† | 31m | ✓ (flash) |
+| 2h | TCN Kernel=5 | 718.8 | 65.00 ± 2.50 | 18.01 ± 7.99† | 36m | ✗ (>512KB) |
+| 2k | TCN + SE | 1480.1 | (1/3 seeds) | (1/3 seeds) | — | ✗ (>512KB) |
 
 > † INT8 severely degraded on macOS Metal — FP32 is the reliable metric here
-> MCU ✓ = fits H7 512 KB flash and TFLite Micro compatible
-> Last updated: 2026-05-08 (2a complete; runner on 2b)
+> MCU ✓ (flash) = fits H7 512 KB flash; TFLite Micro op compatibility for TCN not verified
+> Best FP32: 2c (no residual) = 74.54% — far below Series 1 MCU models (~93–94%)
+> TCN series conclusive: all variants well below DS-CNN family; not competitive for this task
+> Last updated: 2026-05-08 (2a–2h complete; 2k partial — seed=42 only)
 
 ---
 # MEL SWEEP — Series 1 top MCU models (macOS Apple M4 Pro)
@@ -195,7 +228,9 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1c | 64† | 42 | 94.72 | 94.44 | 39m |
 | 1c | 64† | 100 | 93.89 | 93.33 | 39m |
 | 1c | 64† | 786 | 92.64 | 93.06 | 21m |
-| 1c | 80 | — | pending | pending | — |
+| 1c | 80 | 42 | 93.47 | 93.33 | 52m |
+| 1c | 80 | 100 | running | running | — |
+| 1c | 80 | 786 | pending | pending | — |
 | 1c | 96 | — | pending | pending | — |
 | 1d | 64† | 42 | 93.06 | 92.50 | 31m |
 | 1d | 64† | 100 | 92.78 | 92.78 | 28m |
@@ -208,7 +243,9 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1e | 64† | 42 | 94.86 | 94.44 | 40m |
 | 1e | 64† | 100 | 93.75 | 93.75 | 40m |
 | 1e | 64† | 786 | 93.75 | 94.17 | 40m |
-| 1e | 80 | — | pending | pending | — |
+| 1e | 80 | 42 | 93.19 | 93.19 | 1h04m |
+| 1e | 80 | 100 | running | running | — |
+| 1e | 80 | 786 | pending | pending | — |
 | 1e | 96 | — | pending | pending | — |
 | 1i | 48 | — | pending | pending | — |
 | 1i | 64† | 42 | 93.89 | 94.44 | 24m |
@@ -224,14 +261,14 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1b | 80 | 91.71 ± 0.32 | 91.71 ± 0.42 | 34m |
 | 1b | 96 | pending | pending | — |
 | 1c | 64† | 93.75 ± 0.85 | 93.61 ± 0.60 | 33m |
-| 1c | 80 | pending | pending | — |
+| 1c | 80 | partial (1/3) | partial (1/3) | — |
 | 1c | 96 | pending | pending | — |
 | 1d | 64† | 93.24 ± 0.47 | 93.10 ± 0.67 | 32m |
 | 1d | 80 | pending | pending | — |
 | 1d | 96 | pending | pending | — |
 | 1e | 48 | 93.80 ± 0.43 | 93.75 ± 0.60 | 30m |
 | 1e | 64† | 94.12 ± 0.52 | 94.12 ± 0.28 | 40m |
-| 1e | 80 | pending | pending | — |
+| 1e | 80 | partial (1/3) | partial (1/3) | — |
 | 1e | 96 | pending | pending | — |
 | 1i | 48 | pending | pending | — |
 | 1i | 64† | 93.89 ± 0.34 | 94.03 ± 0.41 | 23m |
@@ -239,7 +276,7 @@ Updated incrementally as each model+mels 3-seed set completes.
 
 > † Baseline n_mels=64 from Linux authoritative Series 1 run
 > All models MCU-deployable (TFLite Micro compatible, Portenta H7)
-> Last updated: 2026-05-08 (1b×80, 1e×48 complete; 1e×80, 1i×{48,80} running)
+> Last updated: 2026-05-08 (1b×80, 1e×48 complete; 1c×80+1e×80 seed42 done; seed100 running)
 
 ---
 # SERIES 3 — MobileNet family (12-class mygardenbird, macOS Apple M4 Pro)
@@ -250,44 +287,44 @@ Platform: macOS (darwin) · Split: 80:10:10 · dropout=0.2 · warmup=50 · mixup
 
 ### Per-seed results
 
-| Model | Description | INT8 KB | Seed | FP32 % | INT8 % | Runtime |
-|-------|-------------|---------|------|--------|--------|---------|
-| 3a | MBV3Small pretrained 224×224 | 1504.2 | 42 | 80.28 | 26.53† | 19m |
-| 3a | | | 100 | 70.97 | 24.44† | 11m |
-| 3a | | | 786 | 82.36 | 23.33† | 19m |
-| 3b | MBV3Small 64×300 native | 1997.9 | 42 | 84.17 | 84.31 | 29m |
-| 3b | | | 100 | 73.75 | 73.61 | 23m |
-| 3b | | | 786 | 85.97 | 85.97 | 27m |
-| 3c | MBV3Small 48×300 native | 1997.9 | 42 | 77.78 | 79.31 | 22m |
-| 3c | | | 100 | 78.33 | 78.33 | 23m |
-| 3c | | | 786 | 79.31 | 78.89 | 23m |
-| 3d | MBV3Small 80×300 native | 1997.9 | 42 | 84.58 | 84.31 | 35m |
-| 3d | | | 100 | 78.89 | 78.61 | 28m |
-| 3d | | | 786 | 80.69 | 80.97 | 34m |
-| 3e | MBV3Small width×0.75 64×300 | 1270.2 | 42 | 75.83 | 76.39 | 20m |
-| 3e | | | 100 | 78.33 | 78.06 | 27m |
-| 3e | | | 786 | 78.75 | 78.06 | 27m |
-| 3f | MBV3Small width×0.75 48×300 | 1270.2 | 42 | 76.11 | 75.42 | 22m |
-| 3f | | | 100 | 81.53 | 82.22 | 20m |
-| 3f | | | 786 | 75.28 | 75.14 | 22m |
+| Model | Description | INT8 KB | Seed | macOS FP32 % | macOS INT8 % | macOS Runtime | MCU |
+|-------|-------------|---------|------|-------------|-------------|--------------|-----|
+| 3a | MBV3Small pretrained 224×224 | 1504.2 | 42 | 80.28 | 26.53† | 19m | ✗ (>512KB) |
+| 3a | | | 100 | 70.97 | 24.44† | 11m | |
+| 3a | | | 786 | 82.36 | 23.33† | 19m | |
+| 3b | MBV3Small 64×300 native | 1997.9 | 42 | 84.17 | 84.31 | 29m | ✗ (>512KB) |
+| 3b | | | 100 | 73.75 | 73.61 | 23m | |
+| 3b | | | 786 | 85.97 | 85.97 | 27m | |
+| 3c | MBV3Small 48×300 native | 1997.9 | 42 | 77.78 | 79.31 | 22m | ✗ (>512KB) |
+| 3c | | | 100 | 78.33 | 78.33 | 23m | |
+| 3c | | | 786 | 79.31 | 78.89 | 23m | |
+| 3d | MBV3Small 80×300 native | 1997.9 | 42 | 84.58 | 84.31 | 35m | ✗ (>512KB) |
+| 3d | | | 100 | 78.89 | 78.61 | 28m | |
+| 3d | | | 786 | 80.69 | 80.97 | 34m | |
+| 3e | MBV3Small width×0.75 64×300 | 1270.2 | 42 | 75.83 | 76.39 | 20m | ✗ (>512KB) |
+| 3e | | | 100 | 78.33 | 78.06 | 27m | |
+| 3e | | | 786 | 78.75 | 78.06 | 27m | |
+| 3f | MBV3Small width×0.75 48×300 | 1270.2 | 42 | 76.11 | 75.42 | 22m | ✗ (>512KB) |
+| 3f | | | 100 | 81.53 | 82.22 | 20m | |
+| 3f | | | 786 | 75.28 | 75.14 | 22m | |
 
 ### Summary (n=3 seeds)
 
-| Model | Description | INT8 KB | FP32 mean±sd | INT8 mean±sd | Runtime mean |
-|-------|-------------|---------|--------------|--------------|--------------|
-| 3a | MBV3Small pretrained 224×224 | 1504.2 | 77.87 ± 4.97 | 24.77† (broken) | 16m |
-| 3b | MBV3Small 64×300 native | 1997.9 | 81.30 ± 5.43 | 81.30 ± 5.26 | 26m |
-| 3c | MBV3Small 48×300 native | 1997.9 | 78.47 ± 0.62 | 78.84 ± 0.41 | 22m |
-| 3d | MBV3Small 80×300 native | 1997.9 | 81.39 ± 2.37 | 81.30 ± 2.35 | 32m |
-| 3e | MBV3Small width×0.75 64×300 | 1270.2 | 77.64 ± 1.28 | 77.50 ± 0.78 | 25m |
-| 3f | MBV3Small width×0.75 48×300 | 1270.2 | 77.64 ± 2.81 | 77.59 ± 3.25 | 21m |
+| Model | Description | INT8 KB | macOS FP32 ±sd | macOS INT8 ±sd | macOS Runtime | MCU |
+|-------|-------------|---------|----------------|----------------|--------------|-----|
+| 3a | MBV3Small pretrained 224×224 | 1504.2 | 77.87 ± 4.97 | 24.77† (broken) | 16m | ✗ (>512KB) |
+| 3b | MBV3Small 64×300 native | 1997.9 | 81.30 ± 5.43 | 81.30 ± 5.26 | 26m | ✗ (>512KB) |
+| 3c | MBV3Small 48×300 native | 1997.9 | 78.47 ± 0.62 | 78.84 ± 0.41 | 22m | ✗ (>512KB) |
+| 3d | MBV3Small 80×300 native | 1997.9 | 81.39 ± 2.37 | 81.30 ± 2.35 | 32m | ✗ (>512KB) |
+| 3e | MBV3Small width×0.75 64×300 | 1270.2 | 77.64 ± 1.28 | 77.50 ± 0.78 | 25m | ✗ (>512KB) |
+| 3f | MBV3Small width×0.75 48×300 | 1270.2 | 77.64 ± 2.81 | 77.59 ± 3.25 | 21m | ✗ (>512KB) |
 
 > † 3a INT8 collapsed: preprocess_input quantization mismatch in TFLite conversion. FP32 results valid. Rerun needed for correct INT8.
 > 3a FP32 77.87% significantly below Stage9's 93% — likely finetune hyperparameter issue (lr=1e-5 too slow on Metal/macOS).
 > 3b–3f: native MBV3Small from scratch. All far exceed H7 512 KB limit. Accuracy benchmark only.
 > Best native resolution: 3d (80×300) = 81.39% FP32. Best overall: 3b/3d neck-and-neck. Narrower input (48mel) hurts.
 > Width×0.75 (3e/3f) saves ~36% size (1270 vs 1998 KB) at cost of ~3–4 pp accuracy.
-> Last updated: 2026-05-07
+> Last updated: 2026-05-08 (3b–3f complete; 3a rerun needed for correct INT8)
 
 ## Architecture Summary
 
