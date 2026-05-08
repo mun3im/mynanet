@@ -34,7 +34,7 @@ on Portenta H7. Only 1a–1e (no attention) produce compatible `.tflite` files.
 | 1e | 786 | 94.00 | 93.83 | -0.17 | ✗ |
 
 ---
-# 12-CLASS ABLATION — AUTHORITATIVE (Linux/CUDA, RTX GPU)
+# SERIES 1 -- 12-CLASS ABLATION — AUTHORITATIVE (Linux/CUDA, RTX GPU)
 ---
 ## Series 1 — DS-CNN family (12-class mygardenbird)
 
@@ -103,66 +103,7 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 - **Mel sweep (macOS, COMPLETE)**: n_mels=80,96 for 1c+1i — n_mels=64 remains best for both; higher mels hurt (see mel sweep section)
 
 ---
-# SERIES 2 — TCN variants (12-class mygardenbird, macOS Apple M4 Pro)
----
-## Series 2 — TCN ablation chain
-
-Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmup=50 · mixup=0.2
-⚠ WARNING: Large FP32→INT8 drop observed — likely Metal quantization issue (same as Series 3). FP32 results more reliable.
-
-### Per-seed results
-
-| Model | Description | INT8 KB | Seed | macOS FP32 % | macOS INT8 % | macOS Runtime | MCU |
-|-------|-------------|---------|------|-------------|-------------|--------------|-----|
-| 2a | TCN Baseline | 526.8 | 42 | 60.83 | 45.56 | 38m | ✗ (>512KB) |
-| 2a | | | 100 | 67.36 | 39.17 | 35m | |
-| 2a | | | 786 | 60.42 | 38.89 | 36m | |
-| 2b | TCN Shallow | 452.6 | 42 | 55.42 | 28.33 | 29m | ✓ (flash) |
-| 2b | | | 100 | 63.47 | 14.03 | 26m | |
-| 2b | | | 786 | 66.67 | 33.06 | 28m | |
-| 2c | TCN No Residual | 524.4 | 42 | 74.31 | 55.83 | 36m | ✗ (>512KB) |
-| 2c | | | 100 | 78.06 | 45.00 | 36m | |
-| 2c | | | 786 | 71.25 | 41.25 | 23m | |
-| 2d | TCN Lightweight | 133.1 | 42 | 40.69 | 32.92 | 15m | ✓ (flash) |
-| 2d | | | 100 | 35.14 | 34.58 | 12m | |
-| 2d | | | 786 | 41.53 | 26.94 | 12m | |
-| 2e | TCN Wide | 526.8 | 42 | 38.06 | 19.44 | 36m | ✗ (>512KB) |
-| 2e | | | 100 | 64.03 | 30.00 | 35m | |
-| 2e | | | 786 | 46.67 | 25.56 | 35m | |
-| 2f | TCN Deep | 765.4 | 42 | 56.81 | 46.25 | 1h13m | ✗ (>512KB) |
-| 2f | | | 100 | 50.97 | 31.25 | 1h12m | |
-| 2f | | | 786 | 46.94 | 22.50 | 59m | |
-| 2g | TCN Kernel=2 | 430.8 | 42 | 55.42 | 9.86 | 32m | ✓ (flash) |
-| 2g | | | 100 | 54.03 | 16.39 | 32m | |
-| 2g | | | 786 | 62.92 | 28.06 | 28m | |
-| 2h | TCN Kernel=5 | 718.8 | 42 | 65.00 | 20.14 | 36m | ✗ (>512KB) |
-| 2h | | | 100 | 67.50 | 24.72 | 36m | |
-| 2h | | | 786 | 62.50 | 9.17 | 36m | |
-| 2k | TCN + SE | 1480.1 | 42 | 43.19 | 13.47 | 54m | ✗ (>512KB) |
-| 2k | | | 100 | — | — | incomplete | |
-
-### Summary (n=3 seeds unless noted)
-
-| Model | Description | INT8 KB | macOS FP32 ±sd | macOS INT8 ±sd | macOS Runtime | MCU |
-|-------|-------------|---------|----------------|----------------|--------------|-----|
-| 2a | TCN Baseline | 526.8 | 62.87 ± 3.89 | 41.21 ± 3.77† | 36m | ✗ (>512KB) |
-| 2b | TCN Shallow | 452.6 | 61.85 ± 5.80 | 25.14 ± 9.91† | 28m | ✓ (flash) |
-| 2c | TCN No Residual | 524.4 | 74.54 ± 3.41 | 47.36 ± 7.57† | 32m | ✗ (>512KB) |
-| 2d | TCN Lightweight | 133.1 | 39.12 ± 3.47 | 31.48 ± 4.02† | 13m | ✓ (flash) |
-| 2e | TCN Wide | 526.8 | 49.59 ± 13.23 | 25.00 ± 5.30† | 35m | ✗ (>512KB) |
-| 2f | TCN Deep | 765.4 | 51.57 ± 4.96 | 33.33 ± 12.01† | 1h08m | ✗ (>512KB) |
-| 2g | TCN Kernel=2 | 430.8 | 57.46 ± 4.78 | 18.10 ± 9.22† | 31m | ✓ (flash) |
-| 2h | TCN Kernel=5 | 718.8 | 65.00 ± 2.50 | 18.01 ± 7.99† | 36m | ✗ (>512KB) |
-| 2k | TCN + SE | 1480.1 | (1/3 seeds) | (1/3 seeds) | — | ✗ (>512KB) |
-
-> † INT8 severely degraded on macOS Metal — FP32 is the reliable metric here
-> MCU ✓ (flash) = fits H7 512 KB flash; TFLite Micro op compatibility for TCN not verified
-> Best FP32: 2c (no residual) = 74.54% — far below Series 1 MCU models (~93–94%)
-> TCN series conclusive: all variants well below DS-CNN family; not competitive for this task
-> Last updated: 2026-05-08 (2a–2h complete; 2k partial — seed=42 only)
-
----
-# MEL SWEEP — Series 1 top MCU models (macOS Apple M4 Pro)
+## MEL SWEEP — Series 1 top MCU models (macOS Apple M4 Pro)
 ---
 ## Mel sweep: 1c + 1i × n_mels ∈ {80, 96} × 3 seeds
 
@@ -278,6 +219,70 @@ Updated incrementally as each model+mels 3-seed set completes.
 > All models MCU-deployable (TFLite Micro compatible, Portenta H7)
 > Last updated: 2026-05-08 (1b×80, 1e×48 complete; 1c×80+1e×80 seed42 done; seed100 running)
 
+
+---
+# SERIES 2 — TCN variants (12-class mygardenbird, macOS Apple M4 Pro)
+---
+## Series 2 — TCN ablation chain
+
+Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmup=50 · mixup=0.2
+⚠ WARNING: Large FP32→INT8 drop observed — likely Metal quantization issue (same as Series 3). FP32 results more reliable.
+
+### Per-seed results
+
+| Model | Description     | INT8 KB | Seed | macOS FP32 % | macOS INT8 % | macOS Runtime | MCU        |
+| ----- | --------------- | ------- | ---- | ------------ | ------------ | ------------- | ---------- |
+| 2a    | TCN Baseline    | 526.8   | 42   | 60.83        | 45.56        | 38m           | ✗ (>512KB) |
+| 2a    |                 |         | 100  | 67.36        | 39.17        | 35m           |            |
+| 2a    |                 |         | 786  | 60.42        | 38.89        | 36m           |            |
+| 2b    | TCN Shallow     | 452.6   | 42   | 55.42        | 28.33        | 29m           | ✓ (flash)  |
+| 2b    |                 |         | 100  | 63.47        | 14.03        | 26m           |            |
+| 2b    |                 |         | 786  | 66.67        | 33.06        | 28m           |            |
+| 2c    | TCN No Residual | 524.4   | 42   | 74.31        | 55.83        | 36m           | ✗ (>512KB) |
+| 2c    |                 |         | 100  | 78.06        | 45.00        | 36m           |            |
+| 2c    |                 |         | 786  | 71.25        | 41.25        | 23m           |            |
+| 2d    | TCN Lightweight | 133.1   | 42   | 40.69        | 32.92        | 15m           | ✓ (flash)  |
+| 2d    |                 |         | 100  | 35.14        | 34.58        | 12m           |            |
+| 2d    |                 |         | 786  | 41.53        | 26.94        | 12m           |            |
+| 2e    | TCN Wide        | 526.8   | 42   | 38.06        | 19.44        | 36m           | ✗ (>512KB) |
+| 2e    |                 |         | 100  | 64.03        | 30.00        | 35m           |            |
+| 2e    |                 |         | 786  | 46.67        | 25.56        | 35m           |            |
+| 2f    | TCN Deep        | 765.4   | 42   | 56.81        | 46.25        | 1h13m         | ✗ (>512KB) |
+| 2f    |                 |         | 100  | 50.97        | 31.25        | 1h12m         |            |
+| 2f    |                 |         | 786  | 46.94        | 22.50        | 59m           |            |
+| 2g    | TCN Kernel=2    | 430.8   | 42   | 55.42        | 9.86         | 32m           | ✓ (flash)  |
+| 2g    |                 |         | 100  | 54.03        | 16.39        | 32m           |            |
+| 2g    |                 |         | 786  | 62.92        | 28.06        | 28m           |            |
+| 2h    | TCN Kernel=5    | 718.8   | 42   | 65.00        | 20.14        | 36m           | ✗ (>512KB) |
+| 2h    |                 |         | 100  | 67.50        | 24.72        | 36m           |            |
+| 2h    |                 |         | 786  | 62.50        | 9.17         | 36m           |            |
+| 2k    | TCN + SE        | 1480.1  | 42   | 43.19        | 13.47        | 54m           | ✗ (>512KB) |
+| 2k    |                 |         | 100  | —            | —            | incomplete    |            |
+
+### Summary (n=3 seeds unless noted)
+
+| Model | Description     | INT8 KB | macOS FP32 ±sd   | macOS INT8 ±sd | macOS Runtime | MCU        |
+| ----- | --------------- | ------- | ---------------- | -------------- | ------------- | ---------- |
+| 2a    | TCN Baseline    | 526.8   | 62.87 ± 3.89     | 41.21 ± 3.77†  | 36m           | ✗ (>512KB) |
+| 2b    | TCN Shallow     | 452.6   | 61.85 ± 5.80     | 25.14 ± 9.91†  | 28m           | ✓ (flash)  |
+| 2c    | TCN No Residual | 524.4   | **74.54** ± 3.41 | 47.36 ± 7.57†  | 32m           | ✗ (>512KB) |
+| 2d    | TCN Lightweight | 133.1   | 39.12 ± 3.47     | 31.48 ± 4.02†  | 13m           | ✓ (flash)  |
+| 2e    | TCN Wide        | 526.8   | 49.59 ± 13.23    | 25.00 ± 5.30†  | 35m           | ✗ (>512KB) |
+| 2f    | TCN Deep        | 765.4   | 51.57 ± 4.96     | 33.33 ± 12.01† | 1h08m         | ✗ (>512KB) |
+| 2g    | TCN Kernel=2    | 430.8   | 57.46 ± 4.78     | 18.10 ± 9.22†  | 31m           | ✓ (flash)  |
+| 2h    | TCN Kernel=5    | 718.8   | 65.00 ± 2.50     | 18.01 ± 7.99†  | 36m           | ✗ (>512KB) |
+| 2k    | TCN + SE        | 1480.1  | (1/3 seeds)      | (1/3 seeds)    | —             | ✗ (>512KB) |
+| 2c    | TCN No Residual (Linux/CUDA) | 524.4 | pending | pending | — | ✗ (>512KB) |
+| 2l    | Pure 1D TCN (non-causal+res) | ~200  | pending | pending | — | ✓ (flash)  |
+
+> † INT8 severely degraded on macOS Metal — FP32 is the reliable metric here
+> MCU ✓ (flash) = fits H7 512 KB flash; TFLite Micro op compatibility for TCN not verified
+> Best macOS FP32: 2c (no residual) = 74.54% — far below Series 1 MCU models (~93–94%)
+> 2c Linux/CUDA: pending — running to verify CUDA ceiling (macOS Metal INT8 unreliable)
+> 2l: pure 1D TCN (non-causal padding=same, residual, LayerNorm) — hypothesis: full context > causal
+> Last updated: 2026-05-08 (2a–2h complete; 2k partial; 2c Linux + 2l pending after current jobs)
+
+
 ---
 # SERIES 3 — MobileNet family (12-class mygardenbird, macOS Apple M4 Pro)
 ---
@@ -326,22 +331,25 @@ Platform: macOS (darwin) · Split: 80:10:10 · dropout=0.2 · warmup=50 · mixup
 > Width×0.75 (3e/3f) saves ~36% size (1270 vs 1998 KB) at cost of ~3–4 pp accuracy.
 > Last updated: 2026-05-08 (3b–3f complete; 3a rerun needed for correct INT8)
 
-## Architecture Summary
 
-| Model | Key difference | INT8 KB | INT8 % (Linux) | MCU |
-|-------|----------------|---------|----------------|-----|
-| 1a | Baseline 2D CNN | 1629.9 | 93.33 | ✗† |
-| 1b | DS-CNN (no SE, no residual) | 289.7 | 93.06 | ✓ |
-| 1c | + SE block | 376.9 | 93.61 | ✓ |
-| 1d | + Residual only | 294.8 | 93.10 | ✓ |
-| 1e | + SE + Residual | 377.2 | **94.12** | ✓ |
-| 1f | + wider channels, no attention | 455.3 | 93.61 | ✓ |
-| 1g | + Multi-Head Self-Attention | 371.8 | 94.21 | ✗ |
-| 1h | 1g + wider channels | 529.3 | 93.89 | ✗‡ |
-| 1i | MBV2 inverted residual + SE | 258.7 | **94.03** | ✓ |
-| 1j | MBV3-SE (5×5 dw + hard-sigmoid) | ~270 | pending | ✓ |
-| 3b–3d | MBV3Small native (64–80 mel) | ~1998 | ~81 | ✗ (4× over) |
-| 3e–3f | MBV3Small width×0.75 | ~1270 | ~77–78 | ✗ (2.5× over) |
+---
+# Architecture Summary
+---
+
+| Model | Key difference                  | INT8 KB | INT8 % (Linux) | MCU           |
+| ----- | ------------------------------- | ------- | -------------- | ------------- |
+| 1a    | Baseline 2D CNN                 | 1629.9  | 93.33          | ✗†            |
+| 1b    | DS-CNN (no SE, no residual)     | 289.7   | 93.06          | ✓             |
+| 1c    | + SE block                      | 376.9   | 93.61          | ✓             |
+| 1d    | + Residual only                 | 294.8   | 93.10          | ✓             |
+| 1e    | + SE + Residual                 | 377.2   | **94.12**      | ✓             |
+| 1f    | + wider channels, no attention  | 455.3   | 93.61          | ✓             |
+| 1g    | + Multi-Head Self-Attention     | 371.8   | 94.21          | ✗             |
+| 1h    | 1g + wider channels             | 529.3   | 93.89          | ✗‡            |
+| 1i    | MBV2 inverted residual + SE     | 258.7   | **94.03**      | ✓             |
+| 1j    | MBV3-SE (5×5 dw + hard-sigmoid) | ~270    | pending        | ✓             |
+| 3b–3d | MBV3Small native (64–80 mel)    | ~1998   | ~81            | ✗ (4× over)   |
+| 3e–3f | MBV3Small width×0.75            | ~1270   | ~77–78         | ✗ (2.5× over) |
 
 > Best H7-deployable: **1e** (94.12% INT8, 377 KB) or **1i** (94.03% INT8, 259 KB — smaller)
 > 1f: width alone adds nothing without attention · 1g/1h: attention ceiling ~94.2%, not H7-deployable
@@ -381,7 +389,7 @@ Old dataset: 10-class seabird. Scripts ported to 12-class mygardenbird paths; re
 - `2i_tcn_specaugment.py` — + SpecAugment (was 4m)
 - `2j_tcn_combined.py` — combined augmentation (was 4n)
 - `2k_tcn_se.py` — + SE block (was 4o)
-- `2l_tcn_multiscale.py` — multiscale TCN (was 4p)
+- `2l_pure1d_tcn.py` — **pure 1D TCN**: non-causal padding=same, residual, LayerNorm, 8 dilated blocks [1,2,4,8,16,32,1,2]
 - `2m_tcn_optimized.py` — optimized variant (was 4j)
 - `2n_tcn_mild_augmentation.py` — mild augmentation (was 4r)
 - `2o_tcn_distillation.py` — knowledge distillation (was 4q)
