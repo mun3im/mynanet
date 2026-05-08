@@ -1,40 +1,27 @@
 #!/usr/bin/env python3
 """
-DS-CNN + Squeeze-Excitation + Residual - Model 1c
-Post-Training Quantization (PTQ) → Cortex-M7 deployment
+Model 3a - Transformer Encoder for Mygardenbird Classification
 Fixed spectrogram shape: 64x300 (10ms per frame)
 Data Split: Fixed 75:10:15 (train/val/test) from dataset directories
 
-Model Architecture: DS-CNN with SE attention and Residual (~300K params, <350KB INT8)
-  Conv2D(64, 3×3) → BN → ReLU6                           # Initial (wider for residual)
-  DS-Conv-SE(64) + Residual → MaxPool2D(2×2)             # Block 1 (with skip!)
-  DS-Conv-SE(128) → MaxPool2D(2×2)                       # Block 2
-  DS-Conv-SE(256) → MaxPool2D(2×2)                       # Block 3
-  DS-Conv-SE(512) → MaxPool2D(2×2)                       # Block 4
-  GlobalAveragePooling2D
-  Dense(128) → Dropout → Dense(10)
+Architecture: Pure Transformer Encoder (SOTA Sequence Model Baseline)
+- Multi-head self-attention (4-8 heads)
+- Positional encoding (learnable embeddings)
+- Feed-forward networks with LayerNorm
+- Global average pooling for classification
+- Purpose: SOTA baseline to compare against TCN temporal modeling
 
-Key Improvements over Model 1b:
-  1. Squeeze-and-Excitation (SE) blocks: Channel attention
-     - "Which channels matter for this input?"
-     - Proven +1-2% accuracy in audio/image classification
-     - Minimal overhead: ~43KB total for all 4 blocks
-
-  2. Residual connections: Better gradient flow
-     - Skip connection in Block 1 (where channels match)
-     - Essentially free (just addition)
-     - Enables training deeper networks
-
-  3. Wider initial conv: 64 channels instead of 32
-     - Enables residual in first block
-     - Better early feature extraction
-
-Target: >93% INT8 accuracy, <350KB model size (100KB budget used)
+Features (inherited from 4a/7d pipeline):
+- SpecAugment, Mixup augmentation
+- Fixed per-class split (no leakage)
+- Smart cache management
+- Configurable LR schedule
+- Post-training INT8 quantization
 """
 
 print("\n\n\n")
 for _ in range(3):
-    print(" 🔶 " * 30)
+    print(" ❤️ " * 30)
 
 import os
 import sys
@@ -146,20 +133,20 @@ script_start = time.time()
 # CONSTANTS
 # --------------------------------------------------------------
 # Default random seed - can be overridden via --random_seed argument
-DEFAULT_RANDOM_STATE = 42
+DEFAULT_RANDOM_STATE = 786
 
 TARGET_SR = 16000
 AUDIO_LENGTH_SEC = 3
 FIXED_AUDIO_LENGTH = TARGET_SR * AUDIO_LENGTH_SEC
 HOP_LENGTH = 160  # 10ms at 16kHz = 160 samples
 N_FFT = 512
-DEFAULT_N_MELS = 64  # Can be overridden via --n_mels (64 or 80)
+N_MELS = 64
 FMAX = 8000
 TIME_FRAMES = 300  # Fixed: 3 seconds / 10ms = 300 frames
 
 # Default paths (can be overridden via config)
-DEFAULT_FLAT_DIR = "/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"
-DEFAULT_SPECTROGRAM_DIR = "/Volumes/Evo/MYGARDENBIRD/precompute/spectrograms_16k_mels64"
+DEFAULT_DATASET_DIR = "/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"
+DEFAULT_SPECTROGRAM_DIR = "/Volumes/Evo/precompute/mygardenbird_spectrograms_16k_fixed"
 
 # SpecAugment settings
 SPECAUGMENT_FREQ_MASK = 8
@@ -195,30 +182,15 @@ def format_time(seconds):
 
 
 # --------------------------------------------------------------
-# OPTIMIZER – LEGACY ON APPLE SILICON, ADAMW ON LINUX
+# OPTIMIZER – LEGACY ON APPLE SILICON
 # --------------------------------------------------------------
-system = platform.system()
-processor = platform.processor()
-
-if system == "Darwin" and processor == "arm":
+if platform.system() == "Darwin" and platform.processor() == "arm":
     from tf_keras.optimizers.legacy import Adam as LegacyAdam
     Adam = LegacyAdam
-    OPTIMIZER_NAME = "Legacy Adam"
     print("Using LEGACY Adam (fast on M1/M2/M4)")
-elif system == "Linux":
-    try:
-        from tf_keras.optimizers import AdamW
-        Adam = AdamW
-        OPTIMIZER_NAME = "AdamW"
-        print("Using AdamW optimizer (Linux - optimal for weight decay)")
-    except ImportError:
-        from tf_keras.optimizers import Adam
-        OPTIMIZER_NAME = "Adam"
-        print("Using standard Adam (AdamW not available)")
 else:
     from tf_keras.optimizers import Adam
-    OPTIMIZER_NAME = "Adam"
-    print(f"Using standard Adam ({system})")
+    print("Using standard Adam")
 
 
 # --------------------------------------------------------------
@@ -229,7 +201,7 @@ def compute_cache_hash(config_params):
     cache_key = {
         'n_fft': N_FFT,
         'hop_length': HOP_LENGTH,
-        'n_mels': DEFAULT_N_MELS,
+        'n_mels': N_MELS,
         'fmax': FMAX,
         'target_sr': TARGET_SR,
         'time_frames': TIME_FRAMES,
@@ -276,8 +248,11 @@ def get_config():
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--warmup_lr", type=float, default=1e-3)
     parser.add_argument("--finetune_lr", type=float, default=1e-5)
-    parser.add_argument("--dropout", type=float, default=0.05)
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--calib_samples", type=int, default=200)
+    parser.add_argument("--num_heads", type=int, default=4, help="Number of attention heads (4, 8)")
+    parser.add_argument("--num_blocks", type=int, default=4, help="Number of Transformer blocks (2, 4, 6)")
+    parser.add_argument("--ff_dim", type=int, default=256, help="Feed-forward dimension (128, 256, 512)")
 
     # Augmentation flags (from 7c)
     parser.add_argument("--augment", action='store_true',
@@ -299,17 +274,11 @@ def get_config():
     parser.add_argument("--gpu_memory_limit", type=int, default=None,
                         help="GPU memory limit in MB (e.g., 8192 for 8GB)")
 
-    # Configurable paths
-    parser.add_argument("--splits_csv", type=str, required=True,
-                        help="Path to splits CSV from seabird_splitter_mip.py")
-    parser.add_argument("--flat_dir", type=str, default=DEFAULT_FLAT_DIR,
-                        help="Path to flat dataset directory")
+    # Configurable paths (from 4d)
+    parser.add_argument("--dataset_dir", type=str, default=DEFAULT_DATASET_DIR,
+                        help="Path to dataset directory")
     parser.add_argument("--spectrogram_dir", type=str, default=DEFAULT_SPECTROGRAM_DIR,
                         help="Path to spectrogram cache directory")
-
-    # Model architecture options
-    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[64, 80],
-                        help="Number of mel bins (64 or 80, default: 64)")
 
     # LR schedule (from 4d)
     parser.add_argument("--lr_schedule", type=str, default="cosine",
@@ -318,15 +287,13 @@ def get_config():
 
     # Random seed (from 4d)
     parser.add_argument("--random_seed", type=int, default=DEFAULT_RANDOM_STATE,
-                        help="Random seed for reproducibility (default: 42)")
+                        help="Random seed for reproducibility (default: 786)")
 
     args = parser.parse_args()
 
     # Set random seed for reproducibility
     tf.random.set_seed(args.random_seed)
     np.random.seed(args.random_seed)
-
-    n_mels = args.n_mels
 
     # Determine augmentation mode and folder name suffix
     aug_suffix = ""
@@ -342,40 +309,19 @@ def get_config():
         augmentation_mode = "baseline"
         aug_suffix = "baseline"
 
-    # Parse split ratio from CSV header for output dir naming
-    split_suffix = ""
-    try:
-        with open(args.splits_csv, 'r') as f:
-            header = f.readline().strip()
-        if header.startswith('# split_ratio='):
-            ratio_str = header.split('split_ratio=')[1].split()[0]
-            split_suffix = f"split{ratio_str}"
-    except Exception:
-        split_suffix = "splitcsv"
-
-    # Count classes from flat dir for results folder naming
-    n_classes = len([d for d in os.listdir(args.flat_dir)
-                     if os.path.isdir(os.path.join(args.flat_dir, d)) and not d.startswith('.')])
-
     output_dir_name = (
-        f"results_mygardenbird_1_{platform.system().lower()}/"
-        f"1c_dscnn_se_res_"
-        f"mels{n_mels}_"
+        f"results/3a_transformer_64x300_ptq_"
+        f"heads{args.num_heads}_"
+        f"blocks{args.num_blocks}_"
         f"drop{int(args.dropout * 100):02d}_"
         f"rand{args.random_seed}_"
         f"warm{args.warmup_epochs}_"
         f"{aug_suffix}_"
-        f"{split_suffix}_"
         f"{platform.system().lower()}"
     )
 
-    # Clean up double underscores
+    # Clean up double underscores if aug_suffix is empty
     output_dir_name = output_dir_name.replace("__", "_").rstrip("_")
-
-    # Update spectrogram dir to include n_mels
-    spec_dir = args.spectrogram_dir
-    if spec_dir == DEFAULT_SPECTROGRAM_DIR:
-        spec_dir = f"/Volumes/Evo/MYGARDENBIRD/precompute/spectrograms_16k_mels{n_mels}"
 
     config = {
         'warmup_epochs': args.warmup_epochs,
@@ -385,22 +331,22 @@ def get_config():
         'finetune_lr': args.finetune_lr,
         'dropout': args.dropout,
         'time_frames': TIME_FRAMES,
-        'n_mels': n_mels,
-        'input_shape': (n_mels, TIME_FRAMES, 1),
+        'input_shape': (N_MELS, TIME_FRAMES, 1),
         'output_dir': output_dir_name,
         'calib_samples': args.calib_samples,
-        'model_type': 'dscnn_se_res',
+        'num_heads': args.num_heads,
+        'num_blocks': args.num_blocks,
+        'ff_dim': args.ff_dim,
         'augmentation_mode': augmentation_mode,
         'mixup_alpha': args.mixup,
         'time_shift_ms': args.time_shift_ms,
         'pitch_shift_steps': args.pitch_shift_steps,
         'force_cpu': args.force_cpu,
         'gpu_memory_limit': args.gpu_memory_limit,
-        'spectrogram_dir': spec_dir,
+        'dataset_dir': args.dataset_dir,
+        'spectrogram_dir': args.spectrogram_dir,
         'lr_schedule': args.lr_schedule,
         'random_seed': args.random_seed,
-        'splits_csv': args.splits_csv,
-        'flat_dir': args.flat_dir,
     }
     os.makedirs(config['output_dir'], exist_ok=True)
     return config
@@ -421,7 +367,7 @@ class TrainingLogger:
         # Initialize log file
         with open(self.log_path, 'w') as f:
             f.write("=" * 80 + "\n")
-            f.write("MODEL 1C: DS-CNN + SE + RESIDUAL\n")
+            f.write("MYGARDENBIRD TRANSFORMER ENCODER TRAINING REPORT (Model 3a)\n")
             f.write("=" * 80 + "\n")
             f.write(f"Training started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Platform: {platform.system()} {platform.machine()}\n")
@@ -460,24 +406,25 @@ class TrainingLogger:
             f.write(f"  FFT Window:             Hann (YAMNet standard, reduces spectral leakage)\n")
             f.write(f"  Window Length:          400 samples (25ms at 16kHz)\n")
             f.write(f"  Hop Length:             {HOP_LENGTH} samples (10.0 ms)\n")
-            f.write(f"  Mel Bins (N_MELS):      {config['n_mels']}\n")
+            f.write(f"  Mel Bins (N_MELS):      {N_MELS}\n")
             f.write(f"  Max Frequency (FMAX):   {FMAX} Hz\n")
             f.write(f"  Time Frames:            {TIME_FRAMES} (FIXED)\n")
-            f.write(f"  Spectrogram Shape:      {config['n_mels']}x{TIME_FRAMES}\n")
+            f.write(f"  Spectrogram Shape:      {N_MELS}x{TIME_FRAMES}\n")
             f.write(f"  Center Padding:         Enabled (librosa center=True)\n")
 
             f.write("\nModel Architecture:\n")
-            f.write(f"  Model Type:             DS-CNN + SE + Residual (Model 1c)\n")
-            f.write(f"  Architecture:           Conv32→DS64→DS128→DS256→DS512 + MaxPool\n")
+            f.write(f"  Model Type:             Transformer Encoder (SOTA Sequence Model)\n")
+            f.write(f"  Number of Heads:        {config['num_heads']}\n")
+            f.write(f"  Number of Blocks:       {config['num_blocks']}\n")
+            f.write(f"  Feed-Forward Dim:       {config['ff_dim']}\n")
             f.write(f"  Dropout Rate:           {config['dropout']}\n")
             f.write(f"  Input Shape:            {config['input_shape']}\n")
-            f.write(f"  Conv Blocks:            4 DS blocks + 1 initial conv\n")
-            f.write(f"  DS-Conv:                DepthwiseConv2D(3×3) + Conv2D(1×1)\n")
-            f.write(f"  Kernel Size:            3×3 (depthwise spatial)\n")
-            f.write(f"  Pooling:                MaxPool2D (2×2) after each DS block\n")
-            f.write(f"  Activation:             ReLU6 (quantization-friendly)\n")
-            f.write(f"  Global Pooling:         GlobalAveragePooling2D\n")
-            f.write(f"  Dense Layers:           128 → 10 (classification head)\n")
+            f.write(f"  Sequence Length:        300 time steps\n")
+            f.write(f"  Embedding Dim:          64 (n_mels)\n")
+            f.write(f"  Positional Encoding:    Learnable\n")
+            f.write(f"  Attention Mechanism:    Multi-head self-attention\n")
+            f.write(f"  Layer Normalization:    Yes (pre-norm)\n")
+            f.write(f"  Residual Connections:   Yes\n")
 
             f.write("\nTraining Configuration:\n")
             f.write(f"  Random Seed:            {config['random_seed']}\n")
@@ -488,7 +435,7 @@ class TrainingLogger:
             f.write(f"  Warmup Learning Rate:   {config['warmup_lr']}\n")
             f.write(f"  Fine-tune Learning Rate:{config['finetune_lr']}\n")
             f.write(f"  LR Schedule:            {config['lr_schedule']}\n")
-            f.write(f"  Optimizer:              {OPTIMIZER_NAME}\n")
+            f.write(f"  Optimizer:              Adam (Legacy on Apple Silicon)\n")
             f.write(f"  Loss Function:          Sparse Categorical Crossentropy\n")
 
             f.write("\nData Augmentation:\n")
@@ -523,8 +470,7 @@ class TrainingLogger:
             f.write(f"  Memory Target:          <512 KB (50% of 1MB)\n")
 
             f.write("\nData Paths:\n")
-            f.write(f"  Flat Directory:         {config['flat_dir']}\n")
-            f.write(f"  Splits CSV:             {config['splits_csv']}\n")
+            f.write(f"  Dataset:                {config['dataset_dir']}\n")
             f.write(f"  Spectrogram Cache:      {config['spectrogram_dir']}\n")
             f.write(f"  Output Directory:       {config['output_dir']}\n")
 
@@ -550,22 +496,11 @@ class TrainingLogger:
     def log_model_info(self, model):
         """Log model architecture summary."""
         self.log_section("MODEL ARCHITECTURE")
-
-        import io
-        stream = io.StringIO()
-        model.summary(print_fn=lambda x: stream.write(x + '\n'))
-        summary_str = stream.getvalue()
-
-        # Save model summary to separate file
-        summary_path = os.path.join(self.output_dir, 'model_summary.txt')
-        with open(summary_path, 'w') as f:
-            f.write("=" * 80 + "\n")
-            f.write("MODEL ARCHITECTURE SUMMARY\n")
-            f.write("=" * 80 + "\n\n")
-            f.write(summary_str)
-        print(f"Saved model summary: {summary_path}")
-
         with open(self.log_path, 'a') as f:
+            import io
+            stream = io.StringIO()
+            model.summary(print_fn=lambda x: stream.write(x + '\n'))
+            summary_str = stream.getvalue()
             f.write("\n" + summary_str)
 
             total_params = model.count_params()
@@ -585,9 +520,9 @@ class TrainingLogger:
             f.write(f"  INT8 (1 byte/param):    {int8_size_kb:.1f} KB\n")
 
             if int8_size_kb > 512:
-                f.write(f"\n  WARNING: Model may exceed 512 KB target for Cortex-M7\n")
+                f.write(f"\n  ⚠ WARNING: Model may exceed 512 KB target for Cortex-M7\n")
             else:
-                f.write(f"\n  Model size within 512 KB target\n")
+                f.write(f"\n  ✓ Model size within 512 KB target\n")
 
     def start_stage(self, stage_name):
         """Mark the start of a training stage."""
@@ -624,7 +559,7 @@ class TrainingLogger:
             f.write(f"  Classification Report:  {report_path}\n")
 
     def log_final_results(self, fp32_acc, int8_acc, model_sizes,
-                          warmup_history, finetune_history, config, model=None):
+                          warmup_history, finetune_history, config):
         """Log final comparison results."""
         self.log_section("FINAL RESULTS SUMMARY")
 
@@ -636,7 +571,8 @@ class TrainingLogger:
             f.write("\n" + "=" * 80 + "\n")
             f.write("QUICK REFERENCE (Copy to spreadsheet)\n")
             f.write("=" * 80 + "\n")
-            f.write(f"Config: model1a_drp{int(config['dropout'] * 10)}_"
+            f.write(f"Config: drp{int(config['dropout'] * 10)}_heads{config['num_heads']}_"
+                    f"blocks{config['num_blocks']}_ff{config['ff_dim']}_"
                     f"{config['augmentation_mode']}_warmup{config['warmup_epochs']}_"
                     f"finetune{config['finetune_epochs']}_lr{config['lr_schedule']}\n")
             f.write(f"FP32: {fp32_acc:.2f}% | INT8: {int8_acc:.2f}% | "
@@ -694,67 +630,14 @@ class TrainingLogger:
             f.write("\n" + "=" * 80 + "\n")
             f.write("CSV FORMAT (for batch comparison)\n")
             f.write("=" * 80 + "\n")
-            f.write("model_type,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
+            f.write("dropout,num_heads,num_blocks,ff_dim,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
                     "lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb\n")
-            f.write(f"1c_dscnn_se_res,{config['dropout']},{config['augmentation_mode']},"
+            f.write(f"{config['dropout']},{config['num_heads']},{config['num_blocks']},{config['ff_dim']},{config['augmentation_mode']},"
                     f"{config['warmup_epochs']},{config['finetune_epochs']},{config['warmup_lr']},{config['finetune_lr']},"
                     f"{config['lr_schedule']},{fp32_acc:.2f},{int8_acc:.2f},{drop:.2f},"
                     f"{max(finetune_history.history['val_accuracy']) * 100:.2f},"
                     f"{overfitting_gap:.2f},{int(total_time)},"
-                    f"{os.path.getsize(os.path.join(config['output_dir'], 'model_int8.tflite')) / 1024:.1f}\n")
-
-            # Cortex-M7 Deployment Assessment
-            f.write("\n" + "=" * 80 + "\n")
-            f.write("CORTEX-M7 DEPLOYMENT ASSESSMENT\n")
-            f.write("=" * 80 + "\n")
-
-            int8_size_kb = os.path.getsize(os.path.join(config['output_dir'], 'model_int8.tflite')) / 1024
-            size_ok = int8_size_kb < 512
-            accuracy_ok = int8_acc >= 90.0
-
-            f.write(f"\nDeployment Criteria:\n")
-            f.write(f"  Model Size:             {int8_size_kb:.1f} KB {'< 512 KB' if size_ok else '>= 512 KB'}\n")
-            f.write(f"  INT8 Accuracy:          {int8_acc:.2f}% {'>= 90%' if accuracy_ok else '< 90%'}\n")
-
-            if size_ok and accuracy_ok:
-                f.write(f"\n  SUITABLE FOR CORTEX-M7 DEPLOYMENT\n")
-            elif size_ok and not accuracy_ok:
-                f.write(f"\n  SIZE OK, BUT ACCURACY BELOW 90% TARGET\n")
-            elif not size_ok and accuracy_ok:
-                f.write(f"\n  ACCURACY OK, BUT MODEL TOO LARGE (>512KB)\n")
-            else:
-                f.write(f"\n  NOT SUITABLE: Size too large AND accuracy below target\n")
-
-            # Latency and Power Estimates for Cortex-M7 @ 480 MHz
-            # Based on typical CMSIS-NN benchmarks: ~10-20 MAC/cycle for INT8
-            # Assuming ~15 MAC/cycle average for mixed operations
-            if model is not None:
-                total_params = sum([np.prod(w.shape) for w in model.trainable_weights])
-            else:
-                # Estimate from INT8 model size (1 byte per param)
-                total_params = int(int8_size_kb * 1024)
-
-            estimated_macs = total_params * 2  # Rough estimate: params * 2 for forward pass
-            cycles_per_inference = estimated_macs / 15  # ~15 MAC/cycle for INT8 on M7
-            latency_ms = (cycles_per_inference / 480_000_000) * 1000  # 480 MHz clock
-
-            # Power estimate: Cortex-M7 @ 480 MHz typically draws ~100-150 mW active
-            # Per-inference energy = power * time
-            power_mw = 120  # Typical active power
-            energy_per_inference_mj = power_mw * latency_ms / 1000  # mJ = mW * s
-
-            f.write(f"\nCortex-M7 @ 480 MHz Estimates:\n")
-            f.write(f"  Estimated MACs:         {estimated_macs:,}\n")
-            f.write(f"  Estimated Latency:      {latency_ms:.2f} ms\n")
-            f.write(f"  Active Power:           ~{power_mw} mW\n")
-            f.write(f"  Energy per Inference:   ~{energy_per_inference_mj:.3f} mJ\n")
-
-            if latency_ms < 100:
-                f.write(f"  Real-time capable (< 100ms latency)\n")
-            elif latency_ms < 500:
-                f.write(f"  Near real-time (100-500ms latency)\n")
-            else:
-                f.write(f"  Batch processing recommended (>500ms latency)\n")
+                    f"{os.path.getsize(os.path.join(config['output_dir'], 'transformer_int8.tflite')) / 1024:.1f}\n")
 
             # Analysis
             f.write("\n" + "=" * 80 + "\n")
@@ -780,12 +663,11 @@ class TrainingLogger:
             f.write(f"  INT8 vs FP32: {drop:+.2f}%\n")
 
             f.write(f"\nModel Architecture:\n")
-            f.write(f"  DS-CNN + SE + Residual (Model 1c)\n")
-            f.write(f"  - 4 DS-Conv blocks: 32→64→128→256→512 filters\n")
-            f.write(f"  - DS-Conv = DepthwiseConv(3×3) + Conv(1×1) pointwise\n")
-            f.write(f"  - ~8x more param efficient than standard Conv2D\n")
-            f.write(f"  - GlobalAveragePooling2D + Dense(128) classifier\n")
-            f.write(f"  - ReLU6 + BatchNorm (quantization-friendly)\n")
+            f.write(f"  ✓ Pure Transformer Encoder (SOTA Sequence Model)\n")
+            f.write(f"  - Multi-head self-attention: {config['num_heads']} heads × {config['num_blocks']} blocks\n")
+            f.write(f"  - Feed-forward networks: {config['ff_dim']} dimensions\n")
+            f.write(f"  - Learnable positional encoding + Layer normalization\n")
+            f.write(f"  - ReLU6 activation (quantization-friendly)\n")
 
             f.write(f"\nAugmentation Strategy:\n")
             f.write(f"  Current Mode: {config['augmentation_mode']}\n")
@@ -808,28 +690,24 @@ class TrainingLogger:
 # --------------------------------------------------------------
 # GLOBAL STATS (2-98 percentile)
 # --------------------------------------------------------------
-def compute_global_stats(data_dir, n_mels, allowed_files=None):
-    """Compute global normalization statistics from flat dataset directory.
-
-    Args:
-        data_dir: Path to flat dataset directory (class_name/file.wav)
-        n_mels: Number of mel bins
-        allowed_files: Optional set of filenames to restrict to (e.g. training
-            files from the splits CSV). If None, all .wav files are used.
-    """
+def compute_global_stats(data_dir):
+    """Compute global normalization statistics from dataset."""
     all_mel = []
     total_sampled = 0
 
-    print(f"Computing global stats (sampling up to {GLOBAL_STATS_SAMPLES} files per class, n_mels={n_mels})...")
+    print(f"Computing global stats (sampling up to {GLOBAL_STATS_SAMPLES} files per class)...")
 
-    for class_name in sorted(os.listdir(data_dir)):
-        class_dir = os.path.join(data_dir, class_name)
+    # Use train directory for computing global stats
+    train_dir = os.path.join(data_dir, 'train')
+    if not os.path.exists(train_dir):
+        train_dir = data_dir  # Fallback to flat structure
+
+    for class_name in sorted(os.listdir(train_dir)):
+        class_dir = os.path.join(train_dir, class_name)
         if not os.path.isdir(class_dir) or class_name.startswith('.'):
             continue
 
         wavs = [f for f in os.listdir(class_dir) if f.endswith('.wav')]
-        if allowed_files is not None:
-            wavs = [f for f in wavs if f in allowed_files]
         sample_size = min(len(wavs), GLOBAL_STATS_SAMPLES)
 
         for f in wavs[:sample_size]:
@@ -845,7 +723,7 @@ def compute_global_stats(data_dir, n_mels, allowed_files=None):
                 mel = librosa.feature.melspectrogram(
                     y=audio, sr=TARGET_SR, n_fft=N_FFT,
                     win_length=400, hop_length=HOP_LENGTH,
-                    n_mels=n_mels, fmax=FMAX, center=True,
+                    n_mels=N_MELS, fmax=FMAX, center=True,
                     power=2.0, window='hann'
                 )
                 mel_db = librosa.power_to_db(mel, ref=np.max)
@@ -867,19 +745,17 @@ def compute_global_stats(data_dir, n_mels, allowed_files=None):
 # --------------------------------------------------------------
 # SPECTROGRAM + NORMALIZE (FIXED 64x300 with WIN_LENGTH)
 # --------------------------------------------------------------
-def compute_spec(audio, sr, gmin, gmax, n_mels=None):
+def compute_spec(audio, sr, gmin, gmax):
     """
     Compute and normalize mel spectrogram with shape validation.
     Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
     """
-    if n_mels is None:
-        n_mels = DEFAULT_N_MELS
     WIN_LENGTH = 400  # 25ms at 16kHz
 
     mel = librosa.feature.melspectrogram(
         y=audio, sr=sr, n_fft=N_FFT,
         win_length=WIN_LENGTH, hop_length=HOP_LENGTH,
-        n_mels=n_mels, fmax=FMAX, center=True,
+        n_mels=N_MELS, fmax=FMAX, center=True,
         power=2.0, window='hann'
     )
 
@@ -932,166 +808,94 @@ def augment_specaugment(spec):
 
 
 # --------------------------------------------------------------
-# DEPTHWISE SEPARABLE CNN + SE + RESIDUAL (Model 1c)
+# TRANSFORMER ENCODER MODEL
 # --------------------------------------------------------------
-def se_block(x, filters, reduction=16, block_id=0):
+def create_transformer_encoder(num_classes, input_shape, dropout=0.1, num_heads=4, num_blocks=4, ff_dim=256):
     """
-    Squeeze-and-Excitation block for channel attention.
-
-    SE = GlobalAvgPool → FC(filters/r) → ReLU → FC(filters) → Sigmoid → Scale
-
-    "Which channels are important for this input?"
-
-    Args:
-        x: Input tensor
-        filters: Number of channels
-        reduction: Reduction ratio for bottleneck (default 16)
-        block_id: Block identifier for naming
-
-    Returns:
-        Channel-reweighted tensor
-
-    Parameter cost: 2 * filters * (filters / reduction)
-    Example: 512 channels, r=16 → 2 * 512 * 32 = 32,768 params
-    """
-    prefix = f'block{block_id}_se_'
-
-    # Squeeze: Global average pooling
-    se = layers.GlobalAveragePooling2D(keepdims=True, name=prefix + 'squeeze')(x)
-
-    # Excitation: Two FC layers with bottleneck
-    se = layers.Conv2D(
-        filters // reduction, (1, 1), activation='relu',
-        use_bias=True, name=prefix + 'reduce'
-    )(se)
-    se = layers.Conv2D(
-        filters, (1, 1), activation='sigmoid',
-        use_bias=True, name=prefix + 'expand'
-    )(se)
-
-    # Scale: Channel-wise multiplication
-    return layers.Multiply(name=prefix + 'scale')([x, se])
-
-
-def ds_conv_block_se_res(x, filters, kernel_size=(3, 3), strides=(1, 1),
-                          block_id=0, use_se=True, use_residual=True, se_reduction=16):
-    """
-    Depthwise Separable Convolution Block with SE and Residual.
-
-    DS-Conv + SE + Residual:
-    1. Depthwise Conv (spatial filtering per channel)
-    2. BatchNorm + ReLU6
-    3. Pointwise Conv (channel mixing)
-    4. BatchNorm
-    5. SE block (channel attention)
-    6. Residual connection (if input/output channels match)
-    7. ReLU6
-
-    Args:
-        x: Input tensor
-        filters: Output channels
-        kernel_size: Depthwise kernel size
-        strides: Depthwise strides
-        block_id: Block identifier
-        use_se: Whether to use SE block
-        use_residual: Whether to use residual connection
-        se_reduction: SE reduction ratio
-    """
-    prefix = f'block{block_id}_'
-    input_channels = x.shape[-1]
-
-    # Save input for residual
-    shortcut = x
-
-    # Depthwise convolution (spatial filtering per channel)
-    x = layers.DepthwiseConv2D(
-        kernel_size, strides=strides, padding='same',
-        use_bias=False, name=prefix + 'depthwise'
-    )(x)
-    x = layers.BatchNormalization(name=prefix + 'depthwise_bn')(x)
-    x = layers.ReLU(6., name=prefix + 'depthwise_relu')(x)
-
-    # Pointwise convolution (1×1, mixes channels)
-    x = layers.Conv2D(
-        filters, (1, 1), padding='same',
-        use_bias=False, name=prefix + 'pointwise'
-    )(x)
-    x = layers.BatchNormalization(name=prefix + 'pointwise_bn')(x)
-
-    # SE block (channel attention)
-    if use_se:
-        x = se_block(x, filters, reduction=se_reduction, block_id=block_id)
-
-    # Residual connection (only if channels match and no stride)
-    if use_residual and input_channels == filters and strides == (1, 1):
-        x = layers.Add(name=prefix + 'residual')([x, shortcut])
-
-    # Final activation
-    x = layers.ReLU(6., name=prefix + 'relu')(x)
-
-    return x
-
-
-def create_dscnn_se_res(num_classes, input_shape, dropout=0.2):
-    """
-    Create DS-CNN with Squeeze-and-Excitation and Residual connections (Model 1c).
+    Create Pure Transformer Encoder for mygardenbird classification.
 
     Architecture:
-      Input: (64, 300, 1) mel-spectrogram
-      Conv2D(64, 3×3) + BN + ReLU6                         # Initial (wider)
-      DS-Conv-SE(64) + Residual + MaxPool2D + Dropout      # Block 1: 64×300 → 32×150
-      DS-Conv-SE(128) + MaxPool2D + Dropout                # Block 2: 32×150 → 16×75
-      DS-Conv-SE(256) + MaxPool2D + Dropout                # Block 3: 16×75 → 8×37
-      DS-Conv-SE(512) + MaxPool2D + Dropout                # Block 4: 8×37 → 4×18
-      GlobalAveragePooling2D
-      Dense(128, relu6) + Dropout + Dense(10, softmax)
+        Input: (64, 300, 1) mel spectrogram
+        ↓
+        Reshape to sequence: (300 time steps, 64 features)
+        ↓
+        Positional Encoding (learnable embedding)
+        ↓
+        Transformer Encoder × N blocks:
+            - Multi-head self-attention
+            - Add & LayerNorm
+            - Feed-forward network
+            - Add & LayerNorm
+        ↓
+        Global Average Pooling
+        ↓
+        Classification head → Dense(10)
 
-    Improvements over Model 1b:
-    - SE blocks: Channel attention (+1-2% accuracy)
-    - Residual: Better gradient flow (where channels match)
-    - Wider initial conv: 64 channels instead of 32
-
-    Parameters: ~300K (target: <350 KB INT8, within 100KB budget)
+    Args:
+        num_classes: Number of output classes (10 for SEABird)
+        input_shape: Input shape (64, 300, 1)
+        dropout: Dropout rate (default: 0.1)
+        num_heads: Number of attention heads (default: 4)
+        num_blocks: Number of Transformer blocks (default: 4)
+        ff_dim: Feed-forward dimension (default: 256)
 
     Returns:
-        Keras Model suitable for Cortex-M7 deployment
+        Keras Model
     """
-    inputs = layers.Input(shape=input_shape, name='input')
+    inputs = layers.Input(shape=input_shape)  # (64, 300, 1)
 
-    # Initial conv - wider to enable residual in block 1
-    x = layers.Conv2D(64, (3, 3), padding='same', use_bias=False, name='initial_conv')(inputs)
-    x = layers.BatchNormalization(name='initial_bn')(x)
-    x = layers.ReLU(6., name='initial_relu')(x)
+    # Reshape to sequence: (300 time steps, 64 features)
+    x = layers.Permute((2, 1, 3))(inputs)  # (300, 64, 1)
+    x = layers.Reshape((input_shape[1], input_shape[0]))(x)  # (300, 64)
 
-    # DS Block 1: 64→64 channels (64×300 → 32×150) - with residual!
-    x = ds_conv_block_se_res(x, 64, block_id=1, use_se=True, use_residual=True, se_reduction=4)
-    x = layers.MaxPooling2D((2, 2), name='pool1')(x)
-    x = layers.Dropout(dropout * 0.5, name='drop1')(x)
+    embed_dim = input_shape[0]  # 64 features
+    sequence_length = input_shape[1]  # 300 time steps
 
-    # DS Block 2: 64→128 channels (32×150 → 16×75)
-    x = ds_conv_block_se_res(x, 128, block_id=2, use_se=True, use_residual=False, se_reduction=8)
-    x = layers.MaxPooling2D((2, 2), name='pool2')(x)
-    x = layers.Dropout(dropout * 0.5, name='drop2')(x)
+    # Learnable positional encoding
+    positions = tf.range(start=0, limit=sequence_length, delta=1)
+    pos_encoding = layers.Embedding(
+        input_dim=sequence_length,
+        output_dim=embed_dim,
+        name='positional_encoding'
+    )(positions)
 
-    # DS Block 3: 128→256 channels (16×75 → 8×37)
-    x = ds_conv_block_se_res(x, 256, block_id=3, use_se=True, use_residual=False, se_reduction=16)
-    x = layers.MaxPooling2D((2, 2), name='pool3')(x)
-    x = layers.Dropout(dropout * 0.75, name='drop3')(x)
+    # Add positional encoding to input
+    x = x + pos_encoding
+    x = layers.Dropout(dropout * 0.5)(x)
 
-    # DS Block 4: 256→512 channels (8×37 → 4×18)
-    x = ds_conv_block_se_res(x, 512, block_id=4, use_se=True, use_residual=False, se_reduction=16)
-    x = layers.MaxPooling2D((2, 2), name='pool4')(x)
-    x = layers.Dropout(dropout, name='drop4')(x)
+    # Transformer Encoder blocks
+    for block_idx in range(num_blocks):
+        # Multi-head self-attention
+        attn_output = layers.MultiHeadAttention(
+            num_heads=num_heads,
+            key_dim=embed_dim // num_heads,
+            dropout=dropout,
+            name=f'attention_block_{block_idx}'
+        )(x, x)
+        attn_output = layers.Dropout(dropout)(attn_output)
 
-    # Global pooling and classification head
-    x = layers.GlobalAveragePooling2D(name='global_pool')(x)
-    x = layers.Dense(128, name='fc1')(x)
-    x = layers.BatchNormalization(name='fc1_bn')(x)
-    x = layers.ReLU(6., name='fc1_relu')(x)
-    x = layers.Dropout(dropout, name='fc_drop')(x)
+        # Add & Norm (residual connection)
+        x1 = layers.LayerNormalization(epsilon=1e-6, name=f'norm1_block_{block_idx}')(x + attn_output)
+
+        # Feed-forward network
+        ffn = layers.Dense(ff_dim, activation='relu', name=f'ffn1_block_{block_idx}')(x1)
+        ffn = layers.Dropout(dropout)(ffn)
+        ffn = layers.Dense(embed_dim, name=f'ffn2_block_{block_idx}')(ffn)
+        ffn = layers.Dropout(dropout)(ffn)
+
+        # Add & Norm (residual connection)
+        x = layers.LayerNormalization(epsilon=1e-6, name=f'norm2_block_{block_idx}')(x1 + ffn)
+
+    # Global pooling and classification
+    x = layers.GlobalAveragePooling1D()(x)
+    x = layers.Dropout(dropout)(x)
+
+    # Classification head
+    x = layers.Dense(128, activation='relu6', name='dense_pre')(x)
+    x = layers.Dropout(dropout)(x)
     outputs = layers.Dense(num_classes, activation='softmax', name='output')(x)
 
-    return keras.Model(inputs, outputs, name="Seabird_DSCNN_SE_Res")
+    return keras.Model(inputs, outputs, name="Mygardenbird_Transformer")
 
 
 # --------------------------------------------------------------
@@ -1439,187 +1243,6 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
 
 
 # --------------------------------------------------------------
-# LOAD DATA (flat dir + splits CSV)
-# --------------------------------------------------------------
-
-def parse_splits_csv(csv_path):
-    """Read splits CSV into a {filename: split} dict.
-
-    Normalises keys to lowercase + .wav so they match os.listdir() output
-    regardless of whether the CSV uses XC1234 or xc1234.wav format.
-    """
-    splits = {}
-    with open(csv_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            parts = line.split(',', 1)
-            if len(parts) != 2:
-                continue
-            key, split = parts[0].strip(), parts[1].strip()
-            if key in ('filename', 'file_id'):
-                continue  # skip header
-            key = key.lower()
-            if not key.endswith('.wav'):
-                key += '.wav'
-            splits[key] = split
-    return splits
-
-
-def load_data_from_csv(csv_path, flat_dir, gmin, gmax, n_mels,
-                       augmentation_mode='none', time_shift_ms=100,
-                       pitch_shift_steps=2, mixup_alpha=0.2):
-    """
-    Load data using a flat directory + splits CSV.
-
-    The CSV maps filename -> split (train/val/test).
-    Files are discovered in flat_dir/{class_name}/{filename}.
-    """
-    if augmentation_mode == 'none':
-        print("\n⚠ WARNING: No augmentation enabled")
-        print("  For better results, try --augment, --mixup, or --specaugment\n")
-
-    splits = parse_splits_csv(csv_path)
-
-    X_test, y_test, test_paths = [], [], []
-    X_val, y_val, val_paths = [], [], []
-    X_train, y_train, train_paths = [], [], []
-    labels = {}
-    idx = 0
-    failed_files = []
-    csv_hits = 0
-    csv_misses = 0
-
-    # Build lookup: filename -> (class_name, full_path)
-    file_lookup = {}
-    for class_name in sorted(os.listdir(flat_dir)):
-        class_dir = os.path.join(flat_dir, class_name)
-        if not os.path.isdir(class_dir) or class_name.startswith('.'):
-            continue
-        for f in os.listdir(class_dir):
-            if f.endswith('.wav'):
-                file_lookup[f] = (class_name, os.path.join(class_dir, f))
-
-    # Count totals for progress bar
-    total_files = 0
-    train_count = 0
-    for fn in splits:
-        if fn in file_lookup:
-            total_files += 1
-            if splits[fn] == 'train':
-                train_count += 1
-
-    if augmentation_mode in ['baseline', 'specaugment']:
-        total_files += train_count
-
-    print(f"\nDataset Structure: CSV-based split from {csv_path}")
-    print(f"  Flat dir: {flat_dir}")
-    print(f"  CSV entries: {len(splits)}")
-    print(f"  Files found: {len(file_lookup)}")
-
-    print(f"\nAugmentation Strategy:")
-    if augmentation_mode == 'baseline':
-        print(f"  Train: baseline augmentation (time/pitch shift)")
-    elif augmentation_mode == 'mixup':
-        print(f"  Train: mixup (alpha={mixup_alpha})")
-    elif augmentation_mode == 'specaugment':
-        print(f"  Train: SpecAugment (freq/time masking)")
-    else:
-        print(f"  Train: no augmentation")
-    print(f"  Total samples to process: {total_files}")
-
-    with tqdm(total=total_files, desc="Loading from CSV splits", unit="file") as pbar:
-        for target_split in ['test', 'val', 'train']:
-            for fn, split in sorted(splits.items()):
-                if split != target_split:
-                    continue
-                if fn not in file_lookup:
-                    csv_misses += 1
-                    continue
-
-                csv_hits += 1
-                class_name, full_path = file_lookup[fn]
-
-                if class_name not in labels:
-                    labels[class_name] = idx
-                    idx += 1
-
-                try:
-                    audio, _ = librosa.load(full_path, sr=TARGET_SR)
-                    audio = audio[:FIXED_AUDIO_LENGTH] if len(audio) > FIXED_AUDIO_LENGTH else \
-                        np.pad(audio, (0, FIXED_AUDIO_LENGTH - len(audio)))
-
-                    spec = compute_spec(audio, TARGET_SR, gmin, gmax, n_mels)
-
-                    if split == 'test':
-                        X_test.append(spec)
-                        y_test.append(labels[class_name])
-                        test_paths.append(full_path)
-                        pbar.update(1)
-                    elif split == 'val':
-                        X_val.append(spec)
-                        y_val.append(labels[class_name])
-                        val_paths.append(full_path)
-                        pbar.update(1)
-                    elif split == 'train':
-                        X_train.append(spec)
-                        y_train.append(labels[class_name])
-                        train_paths.append(full_path)
-                        pbar.update(1)
-
-                        if augmentation_mode == 'baseline':
-                            aug_audio = augment_baseline(audio, TARGET_SR, time_shift_ms, pitch_shift_steps)
-                            aug_spec = compute_spec(aug_audio, TARGET_SR, gmin, gmax, n_mels)
-                            X_train.append(aug_spec)
-                            y_train.append(labels[class_name])
-                            train_paths.append(full_path + "_aug")
-                            pbar.update(1)
-                        elif augmentation_mode == 'specaugment':
-                            aug_spec = augment_specaugment(spec)
-                            X_train.append(aug_spec)
-                            y_train.append(labels[class_name])
-                            train_paths.append(full_path + "_specaug")
-                            pbar.update(1)
-
-                except Exception as e:
-                    failed_files.append(f"{full_path}: {str(e)}")
-                    if split == 'train' and augmentation_mode in ['baseline', 'specaugment']:
-                        pbar.update(2)
-                    else:
-                        pbar.update(1)
-                    continue
-
-    X_test = np.array(X_test, dtype=np.float32)
-    y_test = np.array(y_test, dtype=np.int32)
-    X_val = np.array(X_val, dtype=np.float32)
-    y_val = np.array(y_val, dtype=np.int32)
-    X_train = np.array(X_train, dtype=np.float32)
-    y_train = np.array(y_train, dtype=np.int32)
-
-    if csv_misses > 0:
-        print(f"\n⚠ Warning: {csv_misses} CSV entries had no matching file in {flat_dir}")
-
-    if len(failed_files) > 0:
-        print(f"\n⚠ Warning: {len(failed_files)} files failed to load")
-        with open('data_loading_errors.txt', 'w') as f:
-            for error in failed_files:
-                f.write(error + '\n')
-
-    num_classes = len(labels)
-    print(f"\n✓ CSV Split Complete:")
-    print(f"  Test (held-out):        {len(X_test):5d} samples")
-    print(f"  Val (held-out):         {len(X_val):5d} samples")
-    print(f"  Train (w/ augment):     {len(X_train):5d} samples")
-    print(f"  Total:                  {len(X_test) + len(X_val) + len(X_train):5d} samples")
-    print(f"  Classes:                {num_classes}")
-    print(f"\n  ✓ NO DATA LEAKAGE: Test and Val samples never augmented")
-    print(f"  ✓ INDEPENDENT SPLITS: True held-out evaluation (CSV-based)")
-
-    return X_train, X_val, X_test, y_train, y_val, y_test, labels, len(failed_files)
-
-
-# --------------------------------------------------------------
 # CUSTOM TRAINING LOOP FOR MIXUP
 # --------------------------------------------------------------
 class MixupDataGenerator(keras.utils.Sequence):
@@ -1677,38 +1300,53 @@ def main():
     print(f"  Warmup LR: {config['warmup_lr']}")
     print(f"  Finetune LR: {config['finetune_lr']}")
     print(f"  Dropout: {config['dropout']}")
-    print(f"  Model: DS-CNN + SE + Residual (1c)")
+    print(f"  Attention Heads: {config['num_heads']}")
+    print(f"  Transformer Blocks: {config['num_blocks']}")
+    print(f"  Feed-Forward Dim: {config['ff_dim']}")
     print(f"  Augmentation: {config['augmentation_mode']}")
     if config['augmentation_mode'] == 'mixup':
         print(f"  Mixup Alpha: {config['mixup_alpha']}")
     print(f"  LR Schedule: {config['lr_schedule']}")
-    print(f"  Spectrogram: {config['n_mels']}x{TIME_FRAMES} (10ms/frame)")
-    print(f"  Splits CSV: {config['splits_csv']}")
-    print(f"  Flat dir: {config['flat_dir']}")
+    print(f"  Spectrogram: {N_MELS}x{TIME_FRAMES} (10ms/frame)")
+    print(f"  Dataset: {config['dataset_dir']}")
     print(f"  Cache: {config['spectrogram_dir']}")
 
     # Log hyperparameters
     logger.log_hyperparameters(config)
 
-    # Compute global stats (from training files only)
-    print("\nComputing global normalization stats...")
-    splits = parse_splits_csv(config['splits_csv'])
-    train_files = {fn for fn, split in splits.items() if split == 'train'}
-    global_min, global_max = compute_global_stats(
-        config['flat_dir'], config['n_mels'], allowed_files=train_files)
+    # Validate cache (smart cache management from 4d)
+    cache_valid = validate_cache(config['spectrogram_dir'])
+    if config['augmentation_mode'] != 'none':
+        print("\n⚠ Augmentation enabled: cache not used (spectrograms computed on-the-fly)")
+    else:
+        if not cache_valid:
+            print("\n⚠ Cache invalid or parameters changed - will clear cache")
+            if os.path.exists(config['spectrogram_dir']):
+                shutil.rmtree(config['spectrogram_dir'])
+            os.makedirs(config['spectrogram_dir'], exist_ok=True)
+        else:
+            print("\n✓ Cache valid - reusing cached spectrograms")
 
-    # Load data from CSV splits
-    print(f"\nLoading dataset from CSV splits...")
+    # Compute global stats
+    print("\nComputing global normalization stats...")
+    global_min, global_max = compute_global_stats(config['dataset_dir'])
+
+    # Load data with fixed 90/60/450 split
+    print("\nLoading dataset with FIXED 90/60/450 SPLIT...")
     print("=" * 70)
-    X_train, X_val, X_test, y_train, y_val, y_test, class_labels, failed_count = load_data_from_csv(
-        config['splits_csv'], config['flat_dir'],
-        global_min, global_max, config['n_mels'],
+    X_train, X_val, X_test, y_train, y_val, y_test, class_labels, failed_count = load_data(
+        config['dataset_dir'], global_min, global_max,
         augmentation_mode=config['augmentation_mode'],
         time_shift_ms=config['time_shift_ms'],
         pitch_shift_steps=config['pitch_shift_steps'],
         mixup_alpha=config['mixup_alpha']
     )
     print("=" * 70)
+
+    # Save cache version if not using augmentation
+    if config['augmentation_mode'] == 'none' and not cache_valid:
+        save_cache_version(config['spectrogram_dir'])
+        print("✓ Cache version saved")
 
     class_names = list(class_labels.keys())
     num_classes = len(class_names)
@@ -1753,10 +1391,11 @@ def main():
 
     # Create model
     print(f"\n{'=' * 70}")
-    print("CREATING DS-CNN + SE + RESIDUAL MODEL (Model 1c)")
+    print("CREATING TRANSFORMER ENCODER MODEL")
     print(f"{'=' * 70}")
-    model = create_dscnn_se_res(num_classes, config['input_shape'],
-                                config['dropout'])
+    model = create_transformer_encoder(num_classes, config['input_shape'],
+                                       config['dropout'], config['num_heads'],
+                                       config['num_blocks'], config['ff_dim'])
     model.summary()
 
     # Log model info
@@ -1931,7 +1570,7 @@ def main():
     plot_training_history(warmup_history, finetune_history, config['output_dir'])
 
     # Save FP32 model (.keras only, no .h5)
-    fp32_path = os.path.join(config['output_dir'], 'model_fp32.keras')
+    fp32_path = os.path.join(config['output_dir'], 'transformer_fp32.keras')
     model.save(fp32_path)
     print(f"✓ Saved FP32 model: {fp32_path}")
 
@@ -1950,7 +1589,7 @@ def main():
     print(f"\n{'=' * 70}")
     print("CONVERTING TO INT8 TFLITE (POST-TRAINING QUANTIZATION)")
     print(f"{'=' * 70}")
-    int8_path = os.path.join(config['output_dir'], 'model_int8.tflite')
+    int8_path = os.path.join(config['output_dir'], 'transformer_int8.tflite')
     convert_to_tflite_int8(model, X_calib, int8_path)
 
     # Evaluate INT8
@@ -1971,7 +1610,7 @@ def main():
 
     # Log final results
     logger.log_final_results(fp32_acc, int8_acc, model_sizes,
-                             warmup_history, finetune_history, config, model)
+                             warmup_history, finetune_history, config)
 
     # Console summary
     drop = fp32_acc - int8_acc

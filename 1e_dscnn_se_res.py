@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DS-CNN + Squeeze-Excitation + Residual - Model 1c
+DS-CNN + Squeeze-Excitation + Residual - Model 1e
 Post-Training Quantization (PTQ) → Cortex-M7 deployment
 Fixed spectrogram shape: 64x300 (10ms per frame)
 Data Split: Fixed 75:10:15 (train/val/test) from dataset directories
@@ -308,7 +308,7 @@ def get_config():
                         help="Path to spectrogram cache directory")
 
     # Model architecture options
-    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[64, 80],
+    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[48, 64, 80, 96],
                         help="Number of mel bins (64 or 80, default: 64)")
 
     # LR schedule (from 4d)
@@ -359,7 +359,7 @@ def get_config():
 
     output_dir_name = (
         f"results_mygardenbird_1_{platform.system().lower()}/"
-        f"1c_dscnn_se_res_"
+        f"1e_dscnn_se_res_"
         f"mels{n_mels}_"
         f"drop{int(args.dropout * 100):02d}_"
         f"rand{args.random_seed}_"
@@ -467,7 +467,7 @@ class TrainingLogger:
             f.write(f"  Center Padding:         Enabled (librosa center=True)\n")
 
             f.write("\nModel Architecture:\n")
-            f.write(f"  Model Type:             DS-CNN + SE + Residual (Model 1c)\n")
+            f.write(f"  Model Type:             DS-CNN + SE + Residual (Model 1e)\n")
             f.write(f"  Architecture:           Conv32→DS64→DS128→DS256→DS512 + MaxPool\n")
             f.write(f"  Dropout Rate:           {config['dropout']}\n")
             f.write(f"  Input Shape:            {config['input_shape']}\n")
@@ -696,7 +696,7 @@ class TrainingLogger:
             f.write("=" * 80 + "\n")
             f.write("model_type,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
                     "lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb\n")
-            f.write(f"1c_dscnn_se_res,{config['dropout']},{config['augmentation_mode']},"
+            f.write(f"1e_dscnn_se_res,{config['dropout']},{config['augmentation_mode']},"
                     f"{config['warmup_epochs']},{config['finetune_epochs']},{config['warmup_lr']},{config['finetune_lr']},"
                     f"{config['lr_schedule']},{fp32_acc:.2f},{int8_acc:.2f},{drop:.2f},"
                     f"{max(finetune_history.history['val_accuracy']) * 100:.2f},"
@@ -780,7 +780,7 @@ class TrainingLogger:
             f.write(f"  INT8 vs FP32: {drop:+.2f}%\n")
 
             f.write(f"\nModel Architecture:\n")
-            f.write(f"  DS-CNN + SE + Residual (Model 1c)\n")
+            f.write(f"  DS-CNN + SE + Residual (Model 1e)\n")
             f.write(f"  - 4 DS-Conv blocks: 32→64→128→256→512 filters\n")
             f.write(f"  - DS-Conv = DepthwiseConv(3×3) + Conv(1×1) pointwise\n")
             f.write(f"  - ~8x more param efficient than standard Conv2D\n")
@@ -932,7 +932,7 @@ def augment_specaugment(spec):
 
 
 # --------------------------------------------------------------
-# DEPTHWISE SEPARABLE CNN + SE + RESIDUAL (Model 1c)
+# DEPTHWISE SEPARABLE CNN + SE + RESIDUAL (Model 1e)
 # --------------------------------------------------------------
 def se_block(x, filters, reduction=16, block_id=0):
     """
@@ -1034,7 +1034,7 @@ def ds_conv_block_se_res(x, filters, kernel_size=(3, 3), strides=(1, 1),
 
 def create_dscnn_se_res(num_classes, input_shape, dropout=0.2):
     """
-    Create DS-CNN with Squeeze-and-Excitation and Residual connections (Model 1c).
+    Create DS-CNN with Squeeze-and-Excitation and Residual connections (Model 1e).
 
     Architecture:
       Input: (64, 300, 1) mel-spectrogram
@@ -1753,7 +1753,7 @@ def main():
 
     # Create model
     print(f"\n{'=' * 70}")
-    print("CREATING DS-CNN + SE + RESIDUAL MODEL (Model 1c)")
+    print("CREATING DS-CNN + SE + RESIDUAL MODEL (Model 1e)")
     print(f"{'=' * 70}")
     model = create_dscnn_se_res(num_classes, config['input_shape'],
                                 config['dropout'])

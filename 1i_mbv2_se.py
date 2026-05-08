@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DS-CNN + Squeeze-Excitation + Residual - Model 1c
+DS-CNN + Squeeze-Excitation + Residual - Model 1i
 Post-Training Quantization (PTQ) → Cortex-M7 deployment
 Fixed spectrogram shape: 64x300 (10ms per frame)
 Data Split: Fixed 75:10:15 (train/val/test) from dataset directories
@@ -308,8 +308,8 @@ def get_config():
                         help="Path to spectrogram cache directory")
 
     # Model architecture options
-    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[64, 80],
-                        help="Number of mel bins (64 or 80, default: 64)")
+    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[48, 64, 80, 96],
+                        help="Number of mel bins (64, 80, or 96, default: 64)")
 
     # LR schedule (from 4d)
     parser.add_argument("--lr_schedule", type=str, default="cosine",
@@ -359,7 +359,7 @@ def get_config():
 
     output_dir_name = (
         f"results_mygardenbird_1_{platform.system().lower()}/"
-        f"1c_dscnn_se_res_"
+        f"1i_mbv2_se_"
         f"mels{n_mels}_"
         f"drop{int(args.dropout * 100):02d}_"
         f"rand{args.random_seed}_"
@@ -389,7 +389,7 @@ def get_config():
         'input_shape': (n_mels, TIME_FRAMES, 1),
         'output_dir': output_dir_name,
         'calib_samples': args.calib_samples,
-        'model_type': 'dscnn_se_res',
+        'model_type': 'mbv2_se',
         'augmentation_mode': augmentation_mode,
         'mixup_alpha': args.mixup,
         'time_shift_ms': args.time_shift_ms,
@@ -467,7 +467,7 @@ class TrainingLogger:
             f.write(f"  Center Padding:         Enabled (librosa center=True)\n")
 
             f.write("\nModel Architecture:\n")
-            f.write(f"  Model Type:             DS-CNN + SE + Residual (Model 1c)\n")
+            f.write(f"  Model Type:             MBV2-style Inverted Residual + SE (Model 1i)\n")
             f.write(f"  Architecture:           Conv32→DS64→DS128→DS256→DS512 + MaxPool\n")
             f.write(f"  Dropout Rate:           {config['dropout']}\n")
             f.write(f"  Input Shape:            {config['input_shape']}\n")
@@ -696,7 +696,7 @@ class TrainingLogger:
             f.write("=" * 80 + "\n")
             f.write("model_type,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
                     "lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb\n")
-            f.write(f"1c_dscnn_se_res,{config['dropout']},{config['augmentation_mode']},"
+            f.write(f"1i_mbv2_se,{config['dropout']},{config['augmentation_mode']},"
                     f"{config['warmup_epochs']},{config['finetune_epochs']},{config['warmup_lr']},{config['finetune_lr']},"
                     f"{config['lr_schedule']},{fp32_acc:.2f},{int8_acc:.2f},{drop:.2f},"
                     f"{max(finetune_history.history['val_accuracy']) * 100:.2f},"
@@ -780,7 +780,7 @@ class TrainingLogger:
             f.write(f"  INT8 vs FP32: {drop:+.2f}%\n")
 
             f.write(f"\nModel Architecture:\n")
-            f.write(f"  DS-CNN + SE + Residual (Model 1c)\n")
+            f.write(f"  MBV2-style Inverted Residual + SE (Model 1i)\n")
             f.write(f"  - 4 DS-Conv blocks: 32→64→128→256→512 filters\n")
             f.write(f"  - DS-Conv = DepthwiseConv(3×3) + Conv(1×1) pointwise\n")
             f.write(f"  - ~8x more param efficient than standard Conv2D\n")
@@ -932,7 +932,7 @@ def augment_specaugment(spec):
 
 
 # --------------------------------------------------------------
-# DEPTHWISE SEPARABLE CNN + SE + RESIDUAL (Model 1c)
+# INVERTED RESIDUAL + SE BLOCKS (Model 1i — MobileNetV2 + SE)
 # --------------------------------------------------------------
 def se_block(x, filters, reduction=16, block_id=0):
     """
@@ -973,37 +973,40 @@ def se_block(x, filters, reduction=16, block_id=0):
     return layers.Multiply(name=prefix + 'scale')([x, se])
 
 
-def ds_conv_block_se_res(x, filters, kernel_size=(3, 3), strides=(1, 1),
-                          block_id=0, use_se=True, use_residual=True, se_reduction=16):
+def inverted_residual_se(x, filters, kernel_size=(3, 3), strides=(1, 1),
+                         expand_ratio=6, block_id=0, se_reduction=16):
     """
-    Depthwise Separable Convolution Block with SE and Residual.
+    MobileNetV2-style Inverted Residual block with SE channel attention.
 
-    DS-Conv + SE + Residual:
-    1. Depthwise Conv (spatial filtering per channel)
-    2. BatchNorm + ReLU6
-    3. Pointwise Conv (channel mixing)
-    4. BatchNorm
-    5. SE block (channel attention)
-    6. Residual connection (if input/output channels match)
-    7. ReLU6
+    Structure (MBV2 + SE):
+      1×1 Conv (expand: in → in*t)  → BN → ReLU6     # pointwise expand
+      3×3 DepthwiseConv             → BN → ReLU6     # spatial filter
+      SE block (channel attention)                    # squeeze-excite
+      1×1 Conv (project: in*t → out) → BN            # pointwise project (no activation)
+      Add shortcut if in==out and stride==1           # residual
 
-    Args:
-        x: Input tensor
-        filters: Output channels
-        kernel_size: Depthwise kernel size
-        strides: Depthwise strides
-        block_id: Block identifier
-        use_se: Whether to use SE block
-        use_residual: Whether to use residual connection
-        se_reduction: SE reduction ratio
+    Key difference from plain DS-Conv:
+    - Expansion BEFORE depthwise gives depthwise more channels to work with
+    - No activation after projection (per MBV2 paper — preserves information)
+    - Residual always applied when shapes match (no channel-mismatch restriction)
+
+    All ops: Conv2D, DepthwiseConv2D, BatchNorm, ReLU6, Add, Multiply — all H7 compatible.
     """
     prefix = f'block{block_id}_'
     input_channels = x.shape[-1]
+    expanded = input_channels * expand_ratio
 
-    # Save input for residual
     shortcut = x
 
-    # Depthwise convolution (spatial filtering per channel)
+    # Expand (pointwise)
+    x = layers.Conv2D(
+        expanded, (1, 1), padding='same',
+        use_bias=False, name=prefix + 'expand'
+    )(x)
+    x = layers.BatchNormalization(name=prefix + 'expand_bn')(x)
+    x = layers.ReLU(6., name=prefix + 'expand_relu')(x)
+
+    # Depthwise (spatial)
     x = layers.DepthwiseConv2D(
         kernel_size, strides=strides, padding='same',
         use_bias=False, name=prefix + 'depthwise'
@@ -1011,77 +1014,79 @@ def ds_conv_block_se_res(x, filters, kernel_size=(3, 3), strides=(1, 1),
     x = layers.BatchNormalization(name=prefix + 'depthwise_bn')(x)
     x = layers.ReLU(6., name=prefix + 'depthwise_relu')(x)
 
-    # Pointwise convolution (1×1, mixes channels)
+    # SE on expanded features
+    x = se_block(x, expanded, reduction=max(1, expand_ratio * se_reduction // 16),
+                 block_id=block_id)
+
+    # Project (pointwise, no activation — MBV2 design)
     x = layers.Conv2D(
         filters, (1, 1), padding='same',
-        use_bias=False, name=prefix + 'pointwise'
+        use_bias=False, name=prefix + 'project'
     )(x)
-    x = layers.BatchNormalization(name=prefix + 'pointwise_bn')(x)
+    x = layers.BatchNormalization(name=prefix + 'project_bn')(x)
 
-    # SE block (channel attention)
-    if use_se:
-        x = se_block(x, filters, reduction=se_reduction, block_id=block_id)
-
-    # Residual connection (only if channels match and no stride)
-    if use_residual and input_channels == filters and strides == (1, 1):
+    # Residual (only when spatial dims and channels match)
+    if input_channels == filters and strides == (1, 1):
         x = layers.Add(name=prefix + 'residual')([x, shortcut])
-
-    # Final activation
-    x = layers.ReLU(6., name=prefix + 'relu')(x)
 
     return x
 
 
-def create_dscnn_se_res(num_classes, input_shape, dropout=0.2):
+def create_mbv2_se(num_classes, input_shape, dropout=0.2):
     """
-    Create DS-CNN with Squeeze-and-Excitation and Residual connections (Model 1c).
+    MobileNetV2-style Inverted Residual + SE (Model 1i).
 
     Architecture:
-      Input: (64, 300, 1) mel-spectrogram
-      Conv2D(64, 3×3) + BN + ReLU6                         # Initial (wider)
-      DS-Conv-SE(64) + Residual + MaxPool2D + Dropout      # Block 1: 64×300 → 32×150
-      DS-Conv-SE(128) + MaxPool2D + Dropout                # Block 2: 32×150 → 16×75
-      DS-Conv-SE(256) + MaxPool2D + Dropout                # Block 3: 16×75 → 8×37
-      DS-Conv-SE(512) + MaxPool2D + Dropout                # Block 4: 8×37 → 4×18
+      Input: (n_mels, 300, 1) mel-spectrogram
+      Conv2D(32, 3×3) + BN + ReLU6                          # Stem
+      InvRes-SE(t=1, 32→16) + MaxPool2D + Dropout           # Block 1
+      InvRes-SE(t=6, 16→24) + MaxPool2D + Dropout           # Block 2
+      InvRes-SE(t=6, 24→48) + MaxPool2D + Dropout           # Block 3
+      InvRes-SE(t=6, 48→96) + MaxPool2D + Dropout           # Block 4
+      Conv2D(320, 1×1) + BN + ReLU6                         # Last-stage expansion
       GlobalAveragePooling2D
-      Dense(128, relu6) + Dropout + Dense(10, softmax)
+      Dense(128, relu6) + Dropout + Dense(n_classes, softmax)
 
-    Improvements over Model 1b:
-    - SE blocks: Channel attention (+1-2% accuracy)
-    - Residual: Better gradient flow (where channels match)
-    - Wider initial conv: 64 channels instead of 32
+    Key differences from 1e:
+    - Inverted bottleneck: expand BEFORE depthwise (6× expansion ratio)
+    - Narrower projected channels (16→24→48→96) — expansion provides capacity
+    - Linear projection (no activation) preserves information
+    - Last-stage 1×1 expansion to 320 before GAP (MBV2 trick, near-free at 4×18)
+    - All ops H7-compatible: Conv2D, DepthwiseConv2D, BN, ReLU6, Add, Multiply
 
-    Parameters: ~300K (target: <350 KB INT8, within 100KB budget)
-
-    Returns:
-        Keras Model suitable for Cortex-M7 deployment
+    Estimated ~350 KB INT8 (within H7 512KB flash limit).
     """
     inputs = layers.Input(shape=input_shape, name='input')
 
-    # Initial conv - wider to enable residual in block 1
-    x = layers.Conv2D(64, (3, 3), padding='same', use_bias=False, name='initial_conv')(inputs)
-    x = layers.BatchNormalization(name='initial_bn')(x)
-    x = layers.ReLU(6., name='initial_relu')(x)
+    # Stem
+    x = layers.Conv2D(32, (3, 3), padding='same', use_bias=False, name='stem_conv')(inputs)
+    x = layers.BatchNormalization(name='stem_bn')(x)
+    x = layers.ReLU(6., name='stem_relu')(x)
 
-    # DS Block 1: 64→64 channels (64×300 → 32×150) - with residual!
-    x = ds_conv_block_se_res(x, 64, block_id=1, use_se=True, use_residual=True, se_reduction=4)
+    # Block 1: t=1, 32→16 (MBV2 first block has no expansion)
+    x = inverted_residual_se(x, 16, block_id=1, expand_ratio=1, se_reduction=4)
     x = layers.MaxPooling2D((2, 2), name='pool1')(x)
     x = layers.Dropout(dropout * 0.5, name='drop1')(x)
 
-    # DS Block 2: 64→128 channels (32×150 → 16×75)
-    x = ds_conv_block_se_res(x, 128, block_id=2, use_se=True, use_residual=False, se_reduction=8)
+    # Block 2: t=6, 16→24
+    x = inverted_residual_se(x, 24, block_id=2, expand_ratio=6, se_reduction=8)
     x = layers.MaxPooling2D((2, 2), name='pool2')(x)
     x = layers.Dropout(dropout * 0.5, name='drop2')(x)
 
-    # DS Block 3: 128→256 channels (16×75 → 8×37)
-    x = ds_conv_block_se_res(x, 256, block_id=3, use_se=True, use_residual=False, se_reduction=16)
+    # Block 3: t=6, 24→48
+    x = inverted_residual_se(x, 48, block_id=3, expand_ratio=6, se_reduction=16)
     x = layers.MaxPooling2D((2, 2), name='pool3')(x)
     x = layers.Dropout(dropout * 0.75, name='drop3')(x)
 
-    # DS Block 4: 256→512 channels (8×37 → 4×18)
-    x = ds_conv_block_se_res(x, 512, block_id=4, use_se=True, use_residual=False, se_reduction=16)
+    # Block 4: t=6, 48→96
+    x = inverted_residual_se(x, 96, block_id=4, expand_ratio=6, se_reduction=16)
     x = layers.MaxPooling2D((2, 2), name='pool4')(x)
     x = layers.Dropout(dropout, name='drop4')(x)
+
+    # Last-stage expansion: 1×1 → 320 channels before GAP (spatial dims 4×18 here)
+    x = layers.Conv2D(320, (1, 1), padding='same', use_bias=False, name='last_conv')(x)
+    x = layers.BatchNormalization(name='last_bn')(x)
+    x = layers.ReLU(6., name='last_relu')(x)
 
     # Global pooling and classification head
     x = layers.GlobalAveragePooling2D(name='global_pool')(x)
@@ -1091,7 +1096,7 @@ def create_dscnn_se_res(num_classes, input_shape, dropout=0.2):
     x = layers.Dropout(dropout, name='fc_drop')(x)
     outputs = layers.Dense(num_classes, activation='softmax', name='output')(x)
 
-    return keras.Model(inputs, outputs, name="Seabird_DSCNN_SE_Res")
+    return keras.Model(inputs, outputs, name="MynaNet_MBV2_SE")
 
 
 # --------------------------------------------------------------
@@ -1677,7 +1682,7 @@ def main():
     print(f"  Warmup LR: {config['warmup_lr']}")
     print(f"  Finetune LR: {config['finetune_lr']}")
     print(f"  Dropout: {config['dropout']}")
-    print(f"  Model: DS-CNN + SE + Residual (1c)")
+    print(f"  Model: MBV2-style Inverted Residual + SE (1i)")
     print(f"  Augmentation: {config['augmentation_mode']}")
     if config['augmentation_mode'] == 'mixup':
         print(f"  Mixup Alpha: {config['mixup_alpha']}")
@@ -1753,10 +1758,10 @@ def main():
 
     # Create model
     print(f"\n{'=' * 70}")
-    print("CREATING DS-CNN + SE + RESIDUAL MODEL (Model 1c)")
+    print("CREATING MOBILENETV2-STYLE INVERTED RESIDUAL + SE MODEL (Model 1i)")
     print(f"{'=' * 70}")
-    model = create_dscnn_se_res(num_classes, config['input_shape'],
-                                config['dropout'])
+    model = create_mbv2_se(num_classes, config['input_shape'],
+                           config['dropout'])
     model.summary()
 
     # Log model info

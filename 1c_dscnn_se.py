@@ -308,8 +308,8 @@ def get_config():
                         help="Path to spectrogram cache directory")
 
     # Model architecture options
-    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[64, 80],
-                        help="Number of mel bins (64 or 80, default: 64)")
+    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[64, 80, 96],
+                        help="Number of mel bins (64, 80, or 96, default: 64)")
 
     # LR schedule (from 4d)
     parser.add_argument("--lr_schedule", type=str, default="cosine",
@@ -358,7 +358,7 @@ def get_config():
                      if os.path.isdir(os.path.join(args.flat_dir, d)) and not d.startswith('.')])
 
     output_dir_name = (
-        f"results_seabird{n_classes}_{platform.system().lower()}/"
+        f"results_mygardenbird_1_{platform.system().lower()}/"
         f"1c_dscnn_se_"
         f"mels{n_mels}_"
         f"drop{int(args.dropout * 100):02d}_"

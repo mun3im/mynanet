@@ -1,40 +1,20 @@
 #!/usr/bin/env python3
 """
-DS-CNN + Squeeze-Excitation + Residual - Model 1c
-Post-Training Quantization (PTQ) → Cortex-M7 deployment
-Fixed spectrogram shape: 64x300 (10ms per frame)
-Data Split: Fixed 75:10:15 (train/val/test) from dataset directories
+3a: MobileNetV3Small pretrained ImageNet 224×224 (transfer learning)
 
-Model Architecture: DS-CNN with SE attention and Residual (~300K params, <350KB INT8)
-  Conv2D(64, 3×3) → BN → ReLU6                           # Initial (wider for residual)
-  DS-Conv-SE(64) + Residual → MaxPool2D(2×2)             # Block 1 (with skip!)
-  DS-Conv-SE(128) → MaxPool2D(2×2)                       # Block 2
-  DS-Conv-SE(256) → MaxPool2D(2×2)                       # Block 3
-  DS-Conv-SE(512) → MaxPool2D(2×2)                       # Block 4
-  GlobalAveragePooling2D
-  Dense(128) → Dropout → Dense(10)
-
-Key Improvements over Model 1b:
-  1. Squeeze-and-Excitation (SE) blocks: Channel attention
-     - "Which channels matter for this input?"
-     - Proven +1-2% accuracy in audio/image classification
-     - Minimal overhead: ~43KB total for all 4 blocks
-
-  2. Residual connections: Better gradient flow
-     - Skip connection in Block 1 (where channels match)
-     - Essentially free (just addition)
-     - Enables training deeper networks
-
-  3. Wider initial conv: 64 channels instead of 32
-     - Enables residual in first block
-     - Better early feature extraction
-
-Target: >93% INT8 accuracy, <350KB model size (100KB budget used)
+Matches Stage9 approach that achieved 93% on the same 12-class dataset:
+- ImageNet pretrained weights
+- 224×224×3 (RGB, stacked grayscale mel spectrogram)
+- n_mels=224, per-sample percentile normalisation → [0,255] → preprocess_input
+- Frozen base warmup (10 epochs, lr=0.001) → unfreeze finetune (40 epochs, lr=1e-4)
+- AdamW on Linux, Legacy Adam on macOS; clipnorm=1.0
+- Head: GAP → Dropout(0.3) → Dense(512, relu) → Dropout(0.2) → Dense(n, softmax)
+- Early stopping patience=15 on val_accuracy; ReduceLROnPlateau patience=5
 """
 
 print("\n\n\n")
 for _ in range(3):
-    print(" 🔶 " * 30)
+    print(" ❤️ " * 30)
 
 import os
 import sys
@@ -145,37 +125,33 @@ script_start = time.time()
 # --------------------------------------------------------------
 # CONSTANTS
 # --------------------------------------------------------------
-# Default random seed - can be overridden via --random_seed argument
 DEFAULT_RANDOM_STATE = 42
 
 TARGET_SR = 16000
 AUDIO_LENGTH_SEC = 3
 FIXED_AUDIO_LENGTH = TARGET_SR * AUDIO_LENGTH_SEC
-HOP_LENGTH = 160  # 10ms at 16kHz = 160 samples
-N_FFT = 512
-DEFAULT_N_MELS = 64  # Can be overridden via --n_mels (64 or 80)
-FMAX = 8000
-TIME_FRAMES = 300  # Fixed: 3 seconds / 10ms = 300 frames
 
-# Default paths (can be overridden via config)
+# 224×224 spectrogram parameters (matching Stage9)
+N_MELS = 224
+TIME_FRAMES = 224
+HOP_LENGTH = int(FIXED_AUDIO_LENGTH / TIME_FRAMES)  # ≈214 samples
+N_FFT = 2048  # Stage9 default
+FMAX = TARGET_SR // 2
+
+TARGET_SPEC_HEIGHT = 224
+TARGET_SPEC_WIDTH = 224
+
+# Default paths
 DEFAULT_FLAT_DIR = "/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"
-DEFAULT_SPECTROGRAM_DIR = "/Volumes/Evo/MYGARDENBIRD/precompute/spectrograms_16k_mels64"
+DEFAULT_SPLITS_CSV = "/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv"
 
-# SpecAugment settings
-SPECAUGMENT_FREQ_MASK = 8
-SPECAUGMENT_TIME_MASK = 20
+# SpecAugment settings (scaled for 224×224)
+SPECAUGMENT_FREQ_MASK = 27
+SPECAUGMENT_TIME_MASK = 15
 SPECAUGMENT_NUM_MASKS = 2
 
-# Global stats percentiles for normalization
-PERCENTILE_LOW = 2
-PERCENTILE_HIGH = 98
-
-# Global stats sample size per class
-GLOBAL_STATS_SAMPLES = 100
-
-# Fixed data split per class
-# DEPRECATED: TEST_SIZE_PER_CLASS = 90
-# DEPRECATED: VAL_SIZE_PER_CLASS = 60
+# Frozen warmup epochs (base model frozen)
+FROZEN_WARMUP_EPOCHS = 10
 
 
 # --------------------------------------------------------------
@@ -203,40 +179,38 @@ processor = platform.processor()
 if system == "Darwin" and processor == "arm":
     from tf_keras.optimizers.legacy import Adam as LegacyAdam
     Adam = LegacyAdam
-    OPTIMIZER_NAME = "Legacy Adam"
     print("Using LEGACY Adam (fast on M1/M2/M4)")
 elif system == "Linux":
     try:
+        # Prefer AdamW if available (TF >= 2.14)
         from tf_keras.optimizers import AdamW
         Adam = AdamW
-        OPTIMIZER_NAME = "AdamW"
-        print("Using AdamW optimizer (Linux - optimal for weight decay)")
+        print("Using AdamW optimizer (Linux)")
     except ImportError:
+        # Fallback to standard Adam
         from tf_keras.optimizers import Adam
-        OPTIMIZER_NAME = "Adam"
         print("Using standard Adam (AdamW not available)")
 else:
     from tf_keras.optimizers import Adam
-    OPTIMIZER_NAME = "Adam"
     print(f"Using standard Adam ({system})")
 
 
 # --------------------------------------------------------------
-# CACHE MANAGEMENT (from 4d)
+# CACHE MANAGEMENT
 # --------------------------------------------------------------
 def compute_cache_hash(config_params):
     """Compute hash of preprocessing parameters for cache validation."""
     cache_key = {
         'n_fft': N_FFT,
         'hop_length': HOP_LENGTH,
-        'n_mels': DEFAULT_N_MELS,
+        'n_mels': N_MELS,
         'fmax': FMAX,
         'target_sr': TARGET_SR,
         'time_frames': TIME_FRAMES,
         'audio_length': FIXED_AUDIO_LENGTH,
         'center': True,
         'window': 'hann',
-        'win_length': 400,  # Include WIN_LENGTH in hash
+        'win_length': 400,
     }
     hash_str = json.dumps(cache_key, sort_keys=True)
     return hashlib.md5(hash_str.encode()).hexdigest()[:8]
@@ -271,15 +245,19 @@ def save_cache_version(cache_dir):
 # --------------------------------------------------------------
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--warmup_epochs", type=int, default=50)
+    parser.add_argument("--warmup_epochs", type=int, default=50,
+                        help="Finetune epochs after frozen warmup (frozen warmup is always 10)")
     parser.add_argument("--finetune_epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--warmup_lr", type=float, default=1e-3)
     parser.add_argument("--finetune_lr", type=float, default=1e-5)
-    parser.add_argument("--dropout", type=float, default=0.05)
+    parser.add_argument("--dropout", type=float, default=0.2,
+                        help="Second dropout (before output). First dropout defaults to 0.3.")
+    parser.add_argument("--dropout1", type=float, default=0.3,
+                        help="First dropout rate (after base, before Dense(512))")
     parser.add_argument("--calib_samples", type=int, default=200)
 
-    # Augmentation flags (from 7c)
+    # Augmentation flags
     parser.add_argument("--augment", action='store_true',
                         help="Enable baseline augmentation (time/pitch shift)")
     parser.add_argument("--mixup", type=float, default=None,
@@ -293,40 +271,33 @@ def get_config():
     parser.add_argument("--pitch_shift_steps", type=int, default=2,
                         help="Max pitch shift in semitones (baseline augmentation)")
 
-    # GPU parameters (already parsed early, but include for completeness)
+    # GPU parameters
     parser.add_argument("--force_cpu", action='store_true',
                         help="Force CPU execution (disable GPU)")
     parser.add_argument("--gpu_memory_limit", type=int, default=None,
                         help="GPU memory limit in MB (e.g., 8192 for 8GB)")
 
     # Configurable paths
-    parser.add_argument("--splits_csv", type=str, required=True,
-                        help="Path to splits CSV from seabird_splitter_mip.py")
+    parser.add_argument("--splits_csv", type=str, default=DEFAULT_SPLITS_CSV,
+                        help="Path to splits CSV")
     parser.add_argument("--flat_dir", type=str, default=DEFAULT_FLAT_DIR,
-                        help="Path to flat dataset directory")
-    parser.add_argument("--spectrogram_dir", type=str, default=DEFAULT_SPECTROGRAM_DIR,
-                        help="Path to spectrogram cache directory")
+                        help="Path to flat dataset directory (class_name/file.wav)")
 
-    # Model architecture options
-    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[64, 80],
-                        help="Number of mel bins (64 or 80, default: 64)")
 
-    # LR schedule (from 4d)
+    # LR schedule
     parser.add_argument("--lr_schedule", type=str, default="cosine",
                         choices=["cosine", "plateau", "both", "none"],
                         help="Learning rate schedule strategy")
 
-    # Random seed (from 4d)
+    # Random seed
     parser.add_argument("--random_seed", type=int, default=DEFAULT_RANDOM_STATE,
-                        help="Random seed for reproducibility (default: 42)")
+                        help="Random seed for reproducibility (default: 786)")
 
     args = parser.parse_args()
 
     # Set random seed for reproducibility
     tf.random.set_seed(args.random_seed)
     np.random.seed(args.random_seed)
-
-    n_mels = args.n_mels
 
     # Determine augmentation mode and folder name suffix
     aug_suffix = ""
@@ -342,40 +313,22 @@ def get_config():
         augmentation_mode = "baseline"
         aug_suffix = "baseline"
 
-    # Parse split ratio from CSV header for output dir naming
-    split_suffix = ""
-    try:
-        with open(args.splits_csv, 'r') as f:
-            header = f.readline().strip()
-        if header.startswith('# split_ratio='):
-            ratio_str = header.split('split_ratio=')[1].split()[0]
-            split_suffix = f"split{ratio_str}"
-    except Exception:
-        split_suffix = "splitcsv"
-
-    # Count classes from flat dir for results folder naming
     n_classes = len([d for d in os.listdir(args.flat_dir)
                      if os.path.isdir(os.path.join(args.flat_dir, d)) and not d.startswith('.')])
 
     output_dir_name = (
-        f"results_mygardenbird_1_{platform.system().lower()}/"
-        f"1c_dscnn_se_res_"
-        f"mels{n_mels}_"
+        f"results_mygardenbird_3_{platform.system().lower()}/"
+        f"3a_mobilenetv3_pretrained_224x224_"
+        f"mels224_"
         f"drop{int(args.dropout * 100):02d}_"
         f"rand{args.random_seed}_"
         f"warm{args.warmup_epochs}_"
         f"{aug_suffix}_"
-        f"{split_suffix}_"
-        f"{platform.system().lower()}"
+        f"split80:10:10"
     )
 
-    # Clean up double underscores
+    # Clean up double underscores if aug_suffix is empty
     output_dir_name = output_dir_name.replace("__", "_").rstrip("_")
-
-    # Update spectrogram dir to include n_mels
-    spec_dir = args.spectrogram_dir
-    if spec_dir == DEFAULT_SPECTROGRAM_DIR:
-        spec_dir = f"/Volumes/Evo/MYGARDENBIRD/precompute/spectrograms_16k_mels{n_mels}"
 
     config = {
         'warmup_epochs': args.warmup_epochs,
@@ -384,23 +337,22 @@ def get_config():
         'warmup_lr': args.warmup_lr,
         'finetune_lr': args.finetune_lr,
         'dropout': args.dropout,
+        'dropout1': args.dropout1,
         'time_frames': TIME_FRAMES,
-        'n_mels': n_mels,
-        'input_shape': (n_mels, TIME_FRAMES, 1),
+        'input_shape': (N_MELS, TIME_FRAMES, 3),
         'output_dir': output_dir_name,
         'calib_samples': args.calib_samples,
-        'model_type': 'dscnn_se_res',
         'augmentation_mode': augmentation_mode,
         'mixup_alpha': args.mixup,
         'time_shift_ms': args.time_shift_ms,
         'pitch_shift_steps': args.pitch_shift_steps,
         'force_cpu': args.force_cpu,
         'gpu_memory_limit': args.gpu_memory_limit,
-        'spectrogram_dir': spec_dir,
-        'lr_schedule': args.lr_schedule,
-        'random_seed': args.random_seed,
         'splits_csv': args.splits_csv,
         'flat_dir': args.flat_dir,
+        'n_classes': n_classes,
+        'lr_schedule': args.lr_schedule,
+        'random_seed': args.random_seed,
     }
     os.makedirs(config['output_dir'], exist_ok=True)
     return config
@@ -421,7 +373,7 @@ class TrainingLogger:
         # Initialize log file
         with open(self.log_path, 'w') as f:
             f.write("=" * 80 + "\n")
-            f.write("MODEL 1C: DS-CNN + SE + RESIDUAL\n")
+            f.write("ABLATION 2D: MOBILENETV3SMALL @ 224×224 NATIVE (Version 2d)\n")
             f.write("=" * 80 + "\n")
             f.write(f"Training started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Platform: {platform.system()} {platform.machine()}\n")
@@ -453,31 +405,32 @@ class TrainingLogger:
             else:
                 f.write(f"  Compute: CPU only\n")
 
-            f.write("\nAudio Processing:\n")
+            f.write("\nAudio Processing (224×224 NATIVE):\n")
             f.write(f"  Target Sample Rate:     {TARGET_SR} Hz\n")
             f.write(f"  Audio Length:           {AUDIO_LENGTH_SEC} seconds ({FIXED_AUDIO_LENGTH} samples)\n")
             f.write(f"  FFT Size (N_FFT):       {N_FFT}\n")
             f.write(f"  FFT Window:             Hann (YAMNet standard, reduces spectral leakage)\n")
             f.write(f"  Window Length:          400 samples (25ms at 16kHz)\n")
-            f.write(f"  Hop Length:             {HOP_LENGTH} samples (10.0 ms)\n")
-            f.write(f"  Mel Bins (N_MELS):      {config['n_mels']}\n")
+            f.write(f"  Hop Length:             {HOP_LENGTH} samples ({HOP_LENGTH/TARGET_SR*1000:.1f} ms)\n")
+            f.write(f"  Mel Bins (N_MELS):      {N_MELS} (MORE frequency detail vs 64)\n")
             f.write(f"  Max Frequency (FMAX):   {FMAX} Hz\n")
-            f.write(f"  Time Frames:            {TIME_FRAMES} (FIXED)\n")
-            f.write(f"  Spectrogram Shape:      {config['n_mels']}x{TIME_FRAMES}\n")
+            f.write(f"  Time Frames:            {TIME_FRAMES} (LESS temporal detail vs 300)\n")
+            f.write(f"  Spectrogram Shape:      {N_MELS}×{TIME_FRAMES} (NATIVE, NOT RESIZED)\n")
             f.write(f"  Center Padding:         Enabled (librosa center=True)\n")
+            f.write(f"\n  Trade-off: {HOP_LENGTH/TARGET_SR*1000:.1f}ms temporal vs 10ms (64×300)\n")
+            f.write(f"             {N_MELS} freq bins vs 64 (64×300)\n")
+            f.write(f"  Rationale: Fair comparison for MobileNetV3Small designed for 224×224\n")
 
             f.write("\nModel Architecture:\n")
-            f.write(f"  Model Type:             DS-CNN + SE + Residual (Model 1c)\n")
-            f.write(f"  Architecture:           Conv32→DS64→DS128→DS256→DS512 + MaxPool\n")
+            f.write(f"  Model Type:             MobileNetV3Small (Ablation 2d)\n")
+            f.write(f"  Input Shape:            {config['input_shape']} (NATIVE 224×224)\n")
+            f.write(f"  Architecture:           Standard MobileNetV3Small (as designed)\n")
+            f.write(f"  Pretrained Weights:     None (training from scratch)\n")
             f.write(f"  Dropout Rate:           {config['dropout']}\n")
-            f.write(f"  Input Shape:            {config['input_shape']}\n")
-            f.write(f"  Conv Blocks:            4 DS blocks + 1 initial conv\n")
-            f.write(f"  DS-Conv:                DepthwiseConv2D(3×3) + Conv2D(1×1)\n")
-            f.write(f"  Kernel Size:            3×3 (depthwise spatial)\n")
-            f.write(f"  Pooling:                MaxPool2D (2×2) after each DS block\n")
-            f.write(f"  Activation:             ReLU6 (quantization-friendly)\n")
+            f.write(f"  Blocks:                 Inverted residual + SE blocks\n")
+            f.write(f"  Activation:             Hard-swish (MobileNetV3 standard)\n")
             f.write(f"  Global Pooling:         GlobalAveragePooling2D\n")
-            f.write(f"  Dense Layers:           128 → 10 (classification head)\n")
+            f.write(f"  Quantization Target:    INT8 optimized architecture\n")
 
             f.write("\nTraining Configuration:\n")
             f.write(f"  Random Seed:            {config['random_seed']}\n")
@@ -488,7 +441,7 @@ class TrainingLogger:
             f.write(f"  Warmup Learning Rate:   {config['warmup_lr']}\n")
             f.write(f"  Fine-tune Learning Rate:{config['finetune_lr']}\n")
             f.write(f"  LR Schedule:            {config['lr_schedule']}\n")
-            f.write(f"  Optimizer:              {OPTIMIZER_NAME}\n")
+            f.write(f"  Optimizer:              Adam (Legacy on Apple Silicon)\n")
             f.write(f"  Loss Function:          Sparse Categorical Crossentropy\n")
 
             f.write("\nData Augmentation:\n")
@@ -505,8 +458,8 @@ class TrainingLogger:
                 f.write(f"  Data Multiplier:        2x (original + mixup)\n")
             elif config['augmentation_mode'] == 'specaugment':
                 f.write(f"  Type:                   SpecAugment\n")
-                f.write(f"  Frequency Mask:         {SPECAUGMENT_FREQ_MASK} bins\n")
-                f.write(f"  Time Mask:              {SPECAUGMENT_TIME_MASK} frames\n")
+                f.write(f"  Frequency Mask:         {SPECAUGMENT_FREQ_MASK} bins (scaled for 224)\n")
+                f.write(f"  Time Mask:              {SPECAUGMENT_TIME_MASK} frames (scaled for 224)\n")
                 f.write(f"  Number of Masks:        {SPECAUGMENT_NUM_MASKS}\n")
                 f.write(f"  Data Multiplier:        2x (original + augmented)\n")
             else:
@@ -523,9 +476,7 @@ class TrainingLogger:
             f.write(f"  Memory Target:          <512 KB (50% of 1MB)\n")
 
             f.write("\nData Paths:\n")
-            f.write(f"  Flat Directory:         {config['flat_dir']}\n")
-            f.write(f"  Splits CSV:             {config['splits_csv']}\n")
-            f.write(f"  Spectrogram Cache:      {config['spectrogram_dir']}\n")
+            f.write(f"  Dataset:                {config['flat_dir']}\n")
             f.write(f"  Output Directory:       {config['output_dir']}\n")
 
     def log_dataset_info(self, X, y, class_labels, X_train, X_val, X_test, failed_files=0):
@@ -550,22 +501,11 @@ class TrainingLogger:
     def log_model_info(self, model):
         """Log model architecture summary."""
         self.log_section("MODEL ARCHITECTURE")
-
-        import io
-        stream = io.StringIO()
-        model.summary(print_fn=lambda x: stream.write(x + '\n'))
-        summary_str = stream.getvalue()
-
-        # Save model summary to separate file
-        summary_path = os.path.join(self.output_dir, 'model_summary.txt')
-        with open(summary_path, 'w') as f:
-            f.write("=" * 80 + "\n")
-            f.write("MODEL ARCHITECTURE SUMMARY\n")
-            f.write("=" * 80 + "\n\n")
-            f.write(summary_str)
-        print(f"Saved model summary: {summary_path}")
-
         with open(self.log_path, 'a') as f:
+            import io
+            stream = io.StringIO()
+            model.summary(print_fn=lambda x: stream.write(x + '\n'))
+            summary_str = stream.getvalue()
             f.write("\n" + summary_str)
 
             total_params = model.count_params()
@@ -585,9 +525,9 @@ class TrainingLogger:
             f.write(f"  INT8 (1 byte/param):    {int8_size_kb:.1f} KB\n")
 
             if int8_size_kb > 512:
-                f.write(f"\n  WARNING: Model may exceed 512 KB target for Cortex-M7\n")
+                f.write(f"\n  ⚠ WARNING: Model may exceed 512 KB target for Cortex-M7\n")
             else:
-                f.write(f"\n  Model size within 512 KB target\n")
+                f.write(f"\n  ✓ Model size within 512 KB target\n")
 
     def start_stage(self, stage_name):
         """Mark the start of a training stage."""
@@ -624,7 +564,7 @@ class TrainingLogger:
             f.write(f"  Classification Report:  {report_path}\n")
 
     def log_final_results(self, fp32_acc, int8_acc, model_sizes,
-                          warmup_history, finetune_history, config, model=None):
+                          warmup_history, finetune_history, config):
         """Log final comparison results."""
         self.log_section("FINAL RESULTS SUMMARY")
 
@@ -632,13 +572,12 @@ class TrainingLogger:
         total_time = time.time() - script_start
 
         with open(self.log_path, 'a') as f:
-            # Quick reference card for spreadsheet comparison
+            # Quick reference card
             f.write("\n" + "=" * 80 + "\n")
             f.write("QUICK REFERENCE (Copy to spreadsheet)\n")
             f.write("=" * 80 + "\n")
-            f.write(f"Config: model1a_drp{int(config['dropout'] * 10)}_"
-                    f"{config['augmentation_mode']}_warmup{config['warmup_epochs']}_"
-                    f"finetune{config['finetune_epochs']}_lr{config['lr_schedule']}\n")
+            f.write(f"Model: 2c_mobilenetv3_pretrained_224x224 | Dropout: {config['dropout']} | "
+                    f"Aug: {config['augmentation_mode']} | Seed: {config['random_seed']}\n")
             f.write(f"FP32: {fp32_acc:.2f}% | INT8: {int8_acc:.2f}% | "
                     f"Drop: {drop:+.2f}% | Time: {format_time(total_time)}\n")
 
@@ -690,214 +629,82 @@ class TrainingLogger:
 
             f.write(f"\nTraining completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-            # CSV format for easy import
+            # CSV format
             f.write("\n" + "=" * 80 + "\n")
             f.write("CSV FORMAT (for batch comparison)\n")
             f.write("=" * 80 + "\n")
-            f.write("model_type,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
+            f.write("model,input_size,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
                     "lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb\n")
-            f.write(f"1c_dscnn_se_res,{config['dropout']},{config['augmentation_mode']},"
+            f.write(f"2c_mobilenetv3_pretrained,224x224,{config['dropout']},{config['augmentation_mode']},"
                     f"{config['warmup_epochs']},{config['finetune_epochs']},{config['warmup_lr']},{config['finetune_lr']},"
                     f"{config['lr_schedule']},{fp32_acc:.2f},{int8_acc:.2f},{drop:.2f},"
                     f"{max(finetune_history.history['val_accuracy']) * 100:.2f},"
                     f"{overfitting_gap:.2f},{int(total_time)},"
-                    f"{os.path.getsize(os.path.join(config['output_dir'], 'model_int8.tflite')) / 1024:.1f}\n")
+                    f"{os.path.getsize(os.path.join(config['output_dir'], 'mobilenetv3_int8.tflite')) / 1024:.1f}\n")
 
-            # Cortex-M7 Deployment Assessment
+            # Comparison notes
             f.write("\n" + "=" * 80 + "\n")
-            f.write("CORTEX-M7 DEPLOYMENT ASSESSMENT\n")
+            f.write("COMPARISON: 224×224 NATIVE vs 64×300\n")
             f.write("=" * 80 + "\n")
-
-            int8_size_kb = os.path.getsize(os.path.join(config['output_dir'], 'model_int8.tflite')) / 1024
-            size_ok = int8_size_kb < 512
-            accuracy_ok = int8_acc >= 90.0
-
-            f.write(f"\nDeployment Criteria:\n")
-            f.write(f"  Model Size:             {int8_size_kb:.1f} KB {'< 512 KB' if size_ok else '>= 512 KB'}\n")
-            f.write(f"  INT8 Accuracy:          {int8_acc:.2f}% {'>= 90%' if accuracy_ok else '< 90%'}\n")
-
-            if size_ok and accuracy_ok:
-                f.write(f"\n  SUITABLE FOR CORTEX-M7 DEPLOYMENT\n")
-            elif size_ok and not accuracy_ok:
-                f.write(f"\n  SIZE OK, BUT ACCURACY BELOW 90% TARGET\n")
-            elif not size_ok and accuracy_ok:
-                f.write(f"\n  ACCURACY OK, BUT MODEL TOO LARGE (>512KB)\n")
-            else:
-                f.write(f"\n  NOT SUITABLE: Size too large AND accuracy below target\n")
-
-            # Latency and Power Estimates for Cortex-M7 @ 480 MHz
-            # Based on typical CMSIS-NN benchmarks: ~10-20 MAC/cycle for INT8
-            # Assuming ~15 MAC/cycle average for mixed operations
-            if model is not None:
-                total_params = sum([np.prod(w.shape) for w in model.trainable_weights])
-            else:
-                # Estimate from INT8 model size (1 byte per param)
-                total_params = int(int8_size_kb * 1024)
-
-            estimated_macs = total_params * 2  # Rough estimate: params * 2 for forward pass
-            cycles_per_inference = estimated_macs / 15  # ~15 MAC/cycle for INT8 on M7
-            latency_ms = (cycles_per_inference / 480_000_000) * 1000  # 480 MHz clock
-
-            # Power estimate: Cortex-M7 @ 480 MHz typically draws ~100-150 mW active
-            # Per-inference energy = power * time
-            power_mw = 120  # Typical active power
-            energy_per_inference_mj = power_mw * latency_ms / 1000  # mJ = mW * s
-
-            f.write(f"\nCortex-M7 @ 480 MHz Estimates:\n")
-            f.write(f"  Estimated MACs:         {estimated_macs:,}\n")
-            f.write(f"  Estimated Latency:      {latency_ms:.2f} ms\n")
-            f.write(f"  Active Power:           ~{power_mw} mW\n")
-            f.write(f"  Energy per Inference:   ~{energy_per_inference_mj:.3f} mJ\n")
-
-            if latency_ms < 100:
-                f.write(f"  Real-time capable (< 100ms latency)\n")
-            elif latency_ms < 500:
-                f.write(f"  Near real-time (100-500ms latency)\n")
-            else:
-                f.write(f"  Batch processing recommended (>500ms latency)\n")
-
-            # Analysis
-            f.write("\n" + "=" * 80 + "\n")
-            f.write("ANALYSIS & RECOMMENDATIONS\n")
-            f.write("=" * 80 + "\n")
-
-            f.write(f"\nCurrent Performance: {int8_acc:.2f}%\n")
-
-            # Performance tier
-            if int8_acc >= 98:
-                f.write("  🏆 EXCEPTIONAL - Near-perfect performance!\n")
-            elif int8_acc >= 95:
-                f.write("  ✓✓ EXCELLENT - Strong baseline performance\n")
-            elif int8_acc >= 90:
-                f.write("  ✓ GOOD - Solid performance with room for improvement\n")
-            elif int8_acc >= 85:
-                f.write("  ⚠ FAIR - Significant improvement needed\n")
-            else:
-                f.write("  ✗ POOR - Major improvements required\n")
-
-            f.write(f"\nQuantization Method:\n")
-            f.write(f"  Method: Post-Training Quantization (PTQ)\n")
-            f.write(f"  INT8 vs FP32: {drop:+.2f}%\n")
-
-            f.write(f"\nModel Architecture:\n")
-            f.write(f"  DS-CNN + SE + Residual (Model 1c)\n")
-            f.write(f"  - 4 DS-Conv blocks: 32→64→128→256→512 filters\n")
-            f.write(f"  - DS-Conv = DepthwiseConv(3×3) + Conv(1×1) pointwise\n")
-            f.write(f"  - ~8x more param efficient than standard Conv2D\n")
-            f.write(f"  - GlobalAveragePooling2D + Dense(128) classifier\n")
-            f.write(f"  - ReLU6 + BatchNorm (quantization-friendly)\n")
-
-            f.write(f"\nAugmentation Strategy:\n")
-            f.write(f"  Current Mode: {config['augmentation_mode']}\n")
-            if config['augmentation_mode'] == 'none':
-                f.write("  Recommendation: Try --augment (baseline), --mixup 0.2, or --specaugment\n")
-            elif config['augmentation_mode'] == 'baseline':
-                f.write("  Recommendation: Try --mixup 0.2 or --specaugment for advanced augmentation\n")
-            elif config['augmentation_mode'] == 'mixup':
-                f.write(f"  Alpha: {config['mixup_alpha']}\n")
-                f.write("  Recommendation: Try different alpha values (0.1-0.4)\n")
-            elif config['augmentation_mode'] == 'specaugment':
-                f.write("  Recommendation: Adjust masks in source code or combine with mixup\n")
-
-            f.write(f"\nLearning Rate Schedule:\n")
-            f.write(f"  Current: {config['lr_schedule']}\n")
-            if config['lr_schedule'] == 'none':
-                f.write("  Recommendation: Try --lr_schedule cosine or plateau\n")
+            f.write(f"\n224×224 Native Configuration:\n")
+            f.write(f"  Temporal resolution: {HOP_LENGTH/TARGET_SR*1000:.1f} ms/frame (vs 10 ms for 64×300)\n")
+            f.write(f"  Frequency resolution: {N_MELS} mel bins (vs 64 for 64×300)\n")
+            f.write(f"  Trade-off: WORSE temporal, BETTER frequency detail\n")
+            f.write(f"\nFair Comparison:\n")
+            f.write(f"  This 224×224 is generated from waveform (not resized from 64×300)\n")
+            f.write(f"  Suitable for on-device deployment (waveform → 224×224 mel)\n")
+            f.write(f"  MobileNetV3Small used AS DESIGNED for 224×224 input\n")
+            f.write(f"\nExpected Findings:\n")
+            f.write(f"  If 224×224 ≈ 64×300 accuracy: Temporal detail matters more\n")
+            f.write(f"  If 224×224 > 64×300 accuracy: Frequency detail matters more\n")
+            f.write(f"  If 224×224 < 64×300 accuracy: MobileNetV3 suboptimal for spectrograms\n")
 
 
-# --------------------------------------------------------------
-# GLOBAL STATS (2-98 percentile)
-# --------------------------------------------------------------
-def compute_global_stats(data_dir, n_mels, allowed_files=None):
-    """Compute global normalization statistics from flat dataset directory.
+# Data processing (Stage9-compatible: per-sample normalisation, RGB, [0,255] float32)
+# NOTE: preprocess_input is embedded in the Keras model (not applied here)
+# so TFLite INT8 quantization sees the correct [0,255] input range.
 
-    Args:
-        data_dir: Path to flat dataset directory (class_name/file.wav)
-        n_mels: Number of mel bins
-        allowed_files: Optional set of filenames to restrict to (e.g. training
-            files from the splits CSV). If None, all .wav files are used.
+def compute_spec(audio, sr, gmin=None, gmax=None):
+    """Compute 224×224×3 mel spectrogram matching Stage9 pipeline.
+
+    Per-sample percentile normalisation → [0,255] float32.
+    preprocess_input is NOT applied here — it lives inside the Keras model.
+    gmin/gmax are accepted but ignored (kept for API compatibility).
     """
-    all_mel = []
-    total_sampled = 0
-
-    print(f"Computing global stats (sampling up to {GLOBAL_STATS_SAMPLES} files per class, n_mels={n_mels})...")
-
-    for class_name in sorted(os.listdir(data_dir)):
-        class_dir = os.path.join(data_dir, class_name)
-        if not os.path.isdir(class_dir) or class_name.startswith('.'):
-            continue
-
-        wavs = [f for f in os.listdir(class_dir) if f.endswith('.wav')]
-        if allowed_files is not None:
-            wavs = [f for f in wavs if f in allowed_files]
-        sample_size = min(len(wavs), GLOBAL_STATS_SAMPLES)
-
-        for f in wavs[:sample_size]:
-            try:
-                audio_path = os.path.join(class_dir, f)
-                audio, _ = librosa.load(audio_path, sr=TARGET_SR)
-
-                if len(audio) > FIXED_AUDIO_LENGTH:
-                    audio = audio[:FIXED_AUDIO_LENGTH]
-                else:
-                    audio = np.pad(audio, (0, FIXED_AUDIO_LENGTH - len(audio)))
-
-                mel = librosa.feature.melspectrogram(
-                    y=audio, sr=TARGET_SR, n_fft=N_FFT,
-                    win_length=400, hop_length=HOP_LENGTH,
-                    n_mels=n_mels, fmax=FMAX, center=True,
-                    power=2.0, window='hann'
-                )
-                mel_db = librosa.power_to_db(mel, ref=np.max)
-                all_mel.append(mel_db.flatten())
-                total_sampled += 1
-            except Exception as e:
-                print(f"\n⚠ Failed to process {f} during stats computation: {e}")
-                continue
-
-    if len(all_mel) == 0:
-        raise RuntimeError("No valid audio files found for computing global stats")
-
-    all_mel = np.concatenate(all_mel)
-    gmin, gmax = np.percentile(all_mel, PERCENTILE_LOW), np.percentile(all_mel, PERCENTILE_HIGH)
-    print(f"✓ Global stats computed from {total_sampled} files: {gmin:.2f} → {gmax:.2f} dB")
-    return float(gmin), float(gmax)
-
-
-# --------------------------------------------------------------
-# SPECTROGRAM + NORMALIZE (FIXED 64x300 with WIN_LENGTH)
-# --------------------------------------------------------------
-def compute_spec(audio, sr, gmin, gmax, n_mels=None):
-    """
-    Compute and normalize mel spectrogram with shape validation.
-    Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
-    """
-    if n_mels is None:
-        n_mels = DEFAULT_N_MELS
-    WIN_LENGTH = 400  # 25ms at 16kHz
-
     mel = librosa.feature.melspectrogram(
-        y=audio, sr=sr, n_fft=N_FFT,
-        win_length=WIN_LENGTH, hop_length=HOP_LENGTH,
-        n_mels=n_mels, fmax=FMAX, center=True,
-        power=2.0, window='hann'
+        y=audio, sr=sr, n_fft=N_FFT, hop_length=HOP_LENGTH,
+        n_mels=N_MELS, fmin=0.0, fmax=FMAX,
+        center=True, pad_mode='constant'
     )
+    log_mel = librosa.power_to_db(mel, top_db=None)
 
-    # Ensure exact TIME_FRAMES
-    if mel.shape[1] > TIME_FRAMES:
-        mel = mel[:, :TIME_FRAMES]
-    if mel.shape[1] < TIME_FRAMES:
-        mel = np.pad(mel, ((0, 0), (0, TIME_FRAMES - mel.shape[1])))
+    # Crop/pad to exact (TARGET_SPEC_HEIGHT, TARGET_SPEC_WIDTH)
+    h, w = log_mel.shape
+    if h > TARGET_SPEC_HEIGHT:
+        log_mel = log_mel[:TARGET_SPEC_HEIGHT, :]
+    elif h < TARGET_SPEC_HEIGHT:
+        log_mel = np.pad(log_mel, ((0, TARGET_SPEC_HEIGHT - h), (0, 0)),
+                         constant_values=log_mel.min())
+    if w > TARGET_SPEC_WIDTH:
+        log_mel = log_mel[:, :TARGET_SPEC_WIDTH]
+    elif w < TARGET_SPEC_WIDTH:
+        log_mel = np.pad(log_mel, ((0, 0), (0, TARGET_SPEC_WIDTH - w)),
+                         constant_values=log_mel.min())
 
-    mel_db = librosa.power_to_db(mel, ref=np.max)
-    mel_db = np.clip(mel_db, gmin, gmax)
-    mel_norm = (mel_db - gmin) / (gmax - gmin + 1e-8)
-    return mel_norm[..., np.newaxis].astype(np.float32)
+    # Stack grayscale → RGB
+    rgb = np.stack([log_mel] * 3, axis=-1)
+
+    # Per-sample percentile normalisation to [0, 255]
+    p2, p98 = np.percentile(rgb, (2, 98))
+    if p98 > p2 + 1e-8:
+        rgb = np.clip(rgb, p2, p98)
+        rgb = ((rgb - p2) / (p98 - p2) * 255.0).astype(np.float32)
+    else:
+        rgb = np.full_like(rgb, 128.0, dtype=np.float32)
+
+    return rgb.astype(np.float32)
 
 
-# --------------------------------------------------------------
-# AUGMENTATION FUNCTIONS
-# --------------------------------------------------------------
 def augment_baseline(audio, sr, time_shift_ms=100, pitch_steps=2):
     """Baseline augmentation: time shift + pitch shift"""
     if np.random.rand() > 0.5:
@@ -912,7 +719,7 @@ def augment_baseline(audio, sr, time_shift_ms=100, pitch_steps=2):
 
 
 def augment_specaugment(spec):
-    """SpecAugment: frequency and time masking on spectrogram"""
+    """SpecAugment: frequency and time masking (scaled for 224×224)"""
     spec_aug = spec.copy()
     freq_bins, time_bins, _ = spec_aug.shape
 
@@ -932,171 +739,41 @@ def augment_specaugment(spec):
 
 
 # --------------------------------------------------------------
-# DEPTHWISE SEPARABLE CNN + SE + RESIDUAL (Model 1c)
+# MODEL: Keras Applications MobileNetV3Small + Stage9 head
+# preprocess_input embedded so TFLite sees [0,255] uint8-equivalent input
 # --------------------------------------------------------------
-def se_block(x, filters, reduction=16, block_id=0):
+def create_mobilenetv3_pretrained(num_classes, dropout1=0.3, dropout2=0.2):
+    """MobileNetV3Small with ImageNet weights, Stage9-style head.
+
+    preprocess_input is embedded as a Lambda layer so the model graph
+    includes the [-1,1] scaling. TFLite INT8 quantization then correctly
+    calibrates for [0,255] float32 input.
     """
-    Squeeze-and-Excitation block for channel attention.
+    from tf_keras import applications as apps
+    from tensorflow.keras.applications.mobilenet_v3 import preprocess_input as mv3_preprocess
 
-    SE = GlobalAvgPool → FC(filters/r) → ReLU → FC(filters) → Sigmoid → Scale
+    inputs = layers.Input(shape=(224, 224, 3), name='input')
+    # Embed preprocess_input inside model graph
+    x = layers.Lambda(lambda t: mv3_preprocess(t), name='preprocess')(inputs)
 
-    "Which channels are important for this input?"
+    base = apps.MobileNetV3Small(
+        input_shape=(224, 224, 3),
+        include_top=False,
+        weights='imagenet',
+        pooling='avg'
+    )
+    x = base(x)
 
-    Args:
-        x: Input tensor
-        filters: Number of channels
-        reduction: Reduction ratio for bottleneck (default 16)
-        block_id: Block identifier for naming
+    x = layers.Dropout(dropout1)(x)
+    x = layers.Dense(512, activation='relu')(x)
+    x = layers.Dropout(dropout2)(x)
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
 
-    Returns:
-        Channel-reweighted tensor
-
-    Parameter cost: 2 * filters * (filters / reduction)
-    Example: 512 channels, r=16 → 2 * 512 * 32 = 32,768 params
-    """
-    prefix = f'block{block_id}_se_'
-
-    # Squeeze: Global average pooling
-    se = layers.GlobalAveragePooling2D(keepdims=True, name=prefix + 'squeeze')(x)
-
-    # Excitation: Two FC layers with bottleneck
-    se = layers.Conv2D(
-        filters // reduction, (1, 1), activation='relu',
-        use_bias=True, name=prefix + 'reduce'
-    )(se)
-    se = layers.Conv2D(
-        filters, (1, 1), activation='sigmoid',
-        use_bias=True, name=prefix + 'expand'
-    )(se)
-
-    # Scale: Channel-wise multiplication
-    return layers.Multiply(name=prefix + 'scale')([x, se])
+    model = keras.Model(inputs, outputs, name='MobileNetV3Small_pretrained')
+    return model, base
 
 
-def ds_conv_block_se_res(x, filters, kernel_size=(3, 3), strides=(1, 1),
-                          block_id=0, use_se=True, use_residual=True, se_reduction=16):
-    """
-    Depthwise Separable Convolution Block with SE and Residual.
-
-    DS-Conv + SE + Residual:
-    1. Depthwise Conv (spatial filtering per channel)
-    2. BatchNorm + ReLU6
-    3. Pointwise Conv (channel mixing)
-    4. BatchNorm
-    5. SE block (channel attention)
-    6. Residual connection (if input/output channels match)
-    7. ReLU6
-
-    Args:
-        x: Input tensor
-        filters: Output channels
-        kernel_size: Depthwise kernel size
-        strides: Depthwise strides
-        block_id: Block identifier
-        use_se: Whether to use SE block
-        use_residual: Whether to use residual connection
-        se_reduction: SE reduction ratio
-    """
-    prefix = f'block{block_id}_'
-    input_channels = x.shape[-1]
-
-    # Save input for residual
-    shortcut = x
-
-    # Depthwise convolution (spatial filtering per channel)
-    x = layers.DepthwiseConv2D(
-        kernel_size, strides=strides, padding='same',
-        use_bias=False, name=prefix + 'depthwise'
-    )(x)
-    x = layers.BatchNormalization(name=prefix + 'depthwise_bn')(x)
-    x = layers.ReLU(6., name=prefix + 'depthwise_relu')(x)
-
-    # Pointwise convolution (1×1, mixes channels)
-    x = layers.Conv2D(
-        filters, (1, 1), padding='same',
-        use_bias=False, name=prefix + 'pointwise'
-    )(x)
-    x = layers.BatchNormalization(name=prefix + 'pointwise_bn')(x)
-
-    # SE block (channel attention)
-    if use_se:
-        x = se_block(x, filters, reduction=se_reduction, block_id=block_id)
-
-    # Residual connection (only if channels match and no stride)
-    if use_residual and input_channels == filters and strides == (1, 1):
-        x = layers.Add(name=prefix + 'residual')([x, shortcut])
-
-    # Final activation
-    x = layers.ReLU(6., name=prefix + 'relu')(x)
-
-    return x
-
-
-def create_dscnn_se_res(num_classes, input_shape, dropout=0.2):
-    """
-    Create DS-CNN with Squeeze-and-Excitation and Residual connections (Model 1c).
-
-    Architecture:
-      Input: (64, 300, 1) mel-spectrogram
-      Conv2D(64, 3×3) + BN + ReLU6                         # Initial (wider)
-      DS-Conv-SE(64) + Residual + MaxPool2D + Dropout      # Block 1: 64×300 → 32×150
-      DS-Conv-SE(128) + MaxPool2D + Dropout                # Block 2: 32×150 → 16×75
-      DS-Conv-SE(256) + MaxPool2D + Dropout                # Block 3: 16×75 → 8×37
-      DS-Conv-SE(512) + MaxPool2D + Dropout                # Block 4: 8×37 → 4×18
-      GlobalAveragePooling2D
-      Dense(128, relu6) + Dropout + Dense(10, softmax)
-
-    Improvements over Model 1b:
-    - SE blocks: Channel attention (+1-2% accuracy)
-    - Residual: Better gradient flow (where channels match)
-    - Wider initial conv: 64 channels instead of 32
-
-    Parameters: ~300K (target: <350 KB INT8, within 100KB budget)
-
-    Returns:
-        Keras Model suitable for Cortex-M7 deployment
-    """
-    inputs = layers.Input(shape=input_shape, name='input')
-
-    # Initial conv - wider to enable residual in block 1
-    x = layers.Conv2D(64, (3, 3), padding='same', use_bias=False, name='initial_conv')(inputs)
-    x = layers.BatchNormalization(name='initial_bn')(x)
-    x = layers.ReLU(6., name='initial_relu')(x)
-
-    # DS Block 1: 64→64 channels (64×300 → 32×150) - with residual!
-    x = ds_conv_block_se_res(x, 64, block_id=1, use_se=True, use_residual=True, se_reduction=4)
-    x = layers.MaxPooling2D((2, 2), name='pool1')(x)
-    x = layers.Dropout(dropout * 0.5, name='drop1')(x)
-
-    # DS Block 2: 64→128 channels (32×150 → 16×75)
-    x = ds_conv_block_se_res(x, 128, block_id=2, use_se=True, use_residual=False, se_reduction=8)
-    x = layers.MaxPooling2D((2, 2), name='pool2')(x)
-    x = layers.Dropout(dropout * 0.5, name='drop2')(x)
-
-    # DS Block 3: 128→256 channels (16×75 → 8×37)
-    x = ds_conv_block_se_res(x, 256, block_id=3, use_se=True, use_residual=False, se_reduction=16)
-    x = layers.MaxPooling2D((2, 2), name='pool3')(x)
-    x = layers.Dropout(dropout * 0.75, name='drop3')(x)
-
-    # DS Block 4: 256→512 channels (8×37 → 4×18)
-    x = ds_conv_block_se_res(x, 512, block_id=4, use_se=True, use_residual=False, se_reduction=16)
-    x = layers.MaxPooling2D((2, 2), name='pool4')(x)
-    x = layers.Dropout(dropout, name='drop4')(x)
-
-    # Global pooling and classification head
-    x = layers.GlobalAveragePooling2D(name='global_pool')(x)
-    x = layers.Dense(128, name='fc1')(x)
-    x = layers.BatchNormalization(name='fc1_bn')(x)
-    x = layers.ReLU(6., name='fc1_relu')(x)
-    x = layers.Dropout(dropout, name='fc_drop')(x)
-    outputs = layers.Dense(num_classes, activation='softmax', name='output')(x)
-
-    return keras.Model(inputs, outputs, name="Seabird_DSCNN_SE_Res")
-
-
-# --------------------------------------------------------------
-# TFLITE CONVERSION (POST-TRAINING QUANTIZATION)
-# --------------------------------------------------------------
+# TFLite conversion and evaluation (identical to 2c)
 def convert_to_tflite_int8(model, X_calib, path):
     """Convert model to INT8 TFLite with post-training quantization."""
     def rep_dataset():
@@ -1116,11 +793,8 @@ def convert_to_tflite_int8(model, X_calib, path):
     print(f"✓ Saved INT8 TFLite: {path} ({os.path.getsize(path) / 1024:.1f} KB)")
 
 
-# --------------------------------------------------------------
-# PLOTTING & EVALUATION
-# --------------------------------------------------------------
 def _save_classification_report(y_test, y_pred, class_names, output_dir, model_type):
-    """Save classification report to file and print to console."""
+    """Save classification report."""
     report = classification_report(y_test, y_pred, target_names=class_names, digits=4)
     report_path = os.path.join(output_dir, f'classification_report_{model_type.lower()}.txt')
     with open(report_path, 'w') as f:
@@ -1215,7 +889,7 @@ def evaluate_tflite(tflite_path, X_test, y_test, class_names, output_dir):
     print("Evaluating TFLite model...")
     for i in tqdm(range(len(X_test)), desc="Running inference", unit="sample"):
         x_fp32 = X_test[i:i + 1]
-        x_int8 = (x_fp32 / input_scale + input_zero_point).astype(np.int8)
+        x_int8 = np.clip(np.round(x_fp32 / input_scale + input_zero_point), -128, 127).astype(np.int8)
 
         interpreter.set_tensor(input_details[0]['index'], x_int8)
         interpreter.invoke()
@@ -1234,30 +908,129 @@ def evaluate_tflite(tflite_path, X_test, y_test, class_names, output_dir):
     return acc
 
 
-# --------------------------------------------------------------
-# LOAD DATA - FIXED 90/60/450 SPLIT
-# --------------------------------------------------------------
-def load_data(data_dir, gmin, gmax, augmentation_mode='none',
-              time_shift_ms=100, pitch_shift_steps=2, mixup_alpha=0.2):
-    """
-    Fixed split for 600 samples/class:
-    1. Test set: 90 samples/class (held-out, never augmented)
-    2. Validation set: 60 samples/class (held-out, never augmented)
-    3. Train set: 450 samples/class (remaining, with optional augmentation)
+def parse_splits_csv(csv_path):
+    """Read splits CSV into a {filename: split} dict."""
+    splits = {}
+    with open(csv_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split(',', 1)
+            if len(parts) != 2:
+                continue
+            key, split = parts[0].strip(), parts[1].strip()
+            if key in ('filename', 'file_id'):
+                continue
+            key = key.lower()
+            if not key.endswith('.wav'):
+                key += '.wav'
+            splits[key] = split
+    return splits
 
-    Augmentation modes:
-    - 'none': No augmentation
-    - 'baseline': Time/pitch shift augmentation
-    - 'mixup': Mixup augmentation (applied during training)
-    - 'specaugment': SpecAugment (frequency/time masking)
-    """
+
+def load_data_from_csv(csv_path, flat_dir, gmin, gmax, augmentation_mode='none',
+                       time_shift_ms=100, pitch_shift_steps=2, mixup_alpha=0.2):
+    """Load data using a flat directory + splits CSV."""
     if augmentation_mode == 'none':
         print("\n⚠ WARNING: No augmentation enabled")
         print("  For better results, try --augment, --mixup, or --specaugment\n")
 
+    splits = parse_splits_csv(csv_path)
+
     X_test, y_test, test_paths = [], [], []
     X_val, y_val, val_paths = [], [], []
     X_train, y_train, train_paths = [], [], []
+    labels = {}
+    idx = 0
+    failed_files = []
+    csv_misses = 0
+
+    file_lookup = {}
+    for class_name in sorted(os.listdir(flat_dir)):
+        class_dir = os.path.join(flat_dir, class_name)
+        if not os.path.isdir(class_dir) or class_name.startswith('.'):
+            continue
+        for f in os.listdir(class_dir):
+            if f.endswith('.wav'):
+                file_lookup[f] = (class_name, os.path.join(class_dir, f))
+
+    total_files = sum(1 for fn in splits if fn in file_lookup)
+    train_count = sum(1 for fn, sp in splits.items() if fn in file_lookup and sp == 'train')
+    if augmentation_mode in ['baseline', 'specaugment']:
+        total_files += train_count
+
+    print(f"\nDataset Structure: CSV-based split from {csv_path}")
+    print(f"  Flat dir: {flat_dir}")
+    print(f"  CSV entries: {len(splits)} | Files found: {len(file_lookup)}")
+
+    with tqdm(total=total_files, desc="Loading from CSV splits", unit="file") as pbar:
+        for target_split in ['test', 'val', 'train']:
+            for fn, split in sorted(splits.items()):
+                if split != target_split:
+                    continue
+                if fn not in file_lookup:
+                    csv_misses += 1
+                    continue
+
+                class_name, full_path = file_lookup[fn]
+                if class_name not in labels:
+                    labels[class_name] = idx
+                    idx += 1
+
+                try:
+                    audio, _ = librosa.load(full_path, sr=TARGET_SR)
+                    audio = audio[:FIXED_AUDIO_LENGTH] if len(audio) > FIXED_AUDIO_LENGTH else \
+                        np.pad(audio, (0, FIXED_AUDIO_LENGTH - len(audio)))
+                    spec = compute_spec(audio, TARGET_SR, gmin, gmax)
+
+                    if split == 'test':
+                        X_test.append(spec); y_test.append(labels[class_name])
+                        test_paths.append(full_path); pbar.update(1)
+                    elif split == 'val':
+                        X_val.append(spec); y_val.append(labels[class_name])
+                        val_paths.append(full_path); pbar.update(1)
+                    elif split == 'train':
+                        X_train.append(spec); y_train.append(labels[class_name])
+                        train_paths.append(full_path); pbar.update(1)
+                        if augmentation_mode == 'baseline':
+                            aug_audio = augment_baseline(audio, TARGET_SR, time_shift_ms, pitch_shift_steps)
+                            X_train.append(compute_spec(aug_audio, TARGET_SR, gmin, gmax))
+                            y_train.append(labels[class_name])
+                            train_paths.append(full_path + "_aug"); pbar.update(1)
+                        elif augmentation_mode == 'specaugment':
+                            X_train.append(augment_specaugment(spec))
+                            y_train.append(labels[class_name])
+                            train_paths.append(full_path + "_specaug"); pbar.update(1)
+                except Exception as e:
+                    failed_files.append(f"{full_path}: {str(e)}")
+                    pbar.update(2 if split == 'train' and augmentation_mode in ['baseline', 'specaugment'] else 1)
+                    continue
+
+    X_test = np.array(X_test, dtype=np.float32); y_test = np.array(y_test, dtype=np.int32)
+    X_val = np.array(X_val, dtype=np.float32);   y_val = np.array(y_val, dtype=np.int32)
+    X_train = np.array(X_train, dtype=np.float32); y_train = np.array(y_train, dtype=np.int32)
+
+    if csv_misses > 0:
+        print(f"\n⚠ Warning: {csv_misses} CSV entries had no matching file in {flat_dir}")
+    if failed_files:
+        print(f"\n⚠ Warning: {len(failed_files)} files failed to load")
+        with open('data_loading_errors.txt', 'w') as f:
+            f.write('\n'.join(failed_files))
+
+    print(f"\n✓ CSV Split: test={len(X_test)} val={len(X_val)} train={len(X_train)} classes={len(labels)}")
+    return X_train, X_val, X_test, y_train, y_val, y_test, labels, len(failed_files)
+
+def load_data(data_dir, gmin, gmax, augmentation_mode='none',
+              time_shift_ms=100, pitch_shift_steps=2, mixup_alpha=0.2):
+    """Load data with fixed 90/60/450 split per class (224×224 version)."""
+    if augmentation_mode == 'none':
+        print("\n⚠ WARNING: No augmentation enabled")
+        print("  For better results, try --augment, --mixup, or --specaugment\n")
+
+    X_test, y_test = [], []
+    X_val, y_val = [], []
+    X_train, y_train = [], []
     labels = {}
     idx = 0
     failed_files = []
@@ -1287,7 +1060,7 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
     if augmentation_mode in ['baseline', 'specaugment']:
         total_files += train_count
 
-    print(f"\nDataset Structure: Fixed 75:10:15 split from directories")
+    print(f"\nDataset Structure: Fixed 75:10:15 split from directories (224×224)")
     print(f"  Dataset root: {data_dir}")
     print(f"  Test dir:  {os.path.join(data_dir, 'test')}")
     print(f"  Val dir:   {os.path.join(data_dir, 'val')}")
@@ -1304,7 +1077,7 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
         print(f"  Train: no augmentation")
     print(f"  Total samples to process: {total_files}")
 
-    with tqdm(total=total_files, desc="Loading from fixed directories", unit="file") as pbar:
+    with tqdm(total=total_files, desc="Loading 224×224 from fixed directories", unit="file") as pbar:
         # Load TEST set (never augmented)
         test_dir = os.path.join(data_dir, 'test')
         if os.path.exists(test_dir):
@@ -1327,7 +1100,6 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
                         spec = compute_spec(audio, TARGET_SR, gmin, gmax)
                         X_test.append(spec)
                         y_test.append(labels[class_name])
-                        test_paths.append(os.path.join(class_dir, f))
                         pbar.update(1)
                     except Exception as e:
                         failed_files.append(f"{os.path.join(class_dir, f)}: {str(e)}")
@@ -1356,7 +1128,6 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
                         spec = compute_spec(audio, TARGET_SR, gmin, gmax)
                         X_val.append(spec)
                         y_val.append(labels[class_name])
-                        val_paths.append(os.path.join(class_dir, f))
                         pbar.update(1)
                     except Exception as e:
                         failed_files.append(f"{os.path.join(class_dir, f)}: {str(e)}")
@@ -1386,7 +1157,6 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
                         spec = compute_spec(audio, TARGET_SR, gmin, gmax)
                         X_train.append(spec)
                         y_train.append(labels[class_name])
-                        train_paths.append(os.path.join(class_dir, f))
                         pbar.update(1)
 
                         # Augmented sample (mode-dependent)
@@ -1395,13 +1165,11 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
                             aug_spec = compute_spec(aug_audio, TARGET_SR, gmin, gmax)
                             X_train.append(aug_spec)
                             y_train.append(labels[class_name])
-                            train_paths.append(os.path.join(class_dir, f) + "_aug")
                             pbar.update(1)
                         elif augmentation_mode == 'specaugment':
                             aug_spec = augment_specaugment(spec)
                             X_train.append(aug_spec)
                             y_train.append(labels[class_name])
-                            train_paths.append(os.path.join(class_dir, f) + "_specaug")
                             pbar.update(1)
 
                     except Exception as e:
@@ -1412,7 +1180,6 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
                             pbar.update(1)
                         continue
 
-    # Convert to numpy arrays
     X_test = np.array(X_test, dtype=np.float32)
     y_test = np.array(y_test, dtype=np.int32)
     X_val = np.array(X_val, dtype=np.float32)
@@ -1422,206 +1189,16 @@ def load_data(data_dir, gmin, gmax, augmentation_mode='none',
 
     if len(failed_files) > 0:
         print(f"\n⚠ Warning: {len(failed_files)} files failed to load")
-        print("Failed files saved to data_loading_errors.txt")
-        with open('data_loading_errors.txt', 'w') as f:
-            for error in failed_files:
-                f.write(error + '\n')
 
-    print(f"\n✓ Fixed Split Complete:")
-    print(f"  Test (held-out):        {len(X_test):5d} samples ({len(X_test) // 10} per class)")
-    print(f"  Val (held-out):         {len(X_val):5d} samples ({len(X_val) // 10} per class)")
-    print(f"  Train (w/ augment):     {len(X_train):5d} samples")
-    print(f"  Total:                  {len(X_test) + len(X_val) + len(X_train):5d} samples")
-    print(f"\n  ✓ NO DATA LEAKAGE: Test and Val samples never augmented")
-    print(f"  ✓ INDEPENDENT SPLITS: True held-out evaluation")
-
-    return X_train, X_val, X_test, y_train, y_val, y_test, labels, len(failed_files)
-
-
-# --------------------------------------------------------------
-# LOAD DATA (flat dir + splits CSV)
-# --------------------------------------------------------------
-
-def parse_splits_csv(csv_path):
-    """Read splits CSV into a {filename: split} dict.
-
-    Normalises keys to lowercase + .wav so they match os.listdir() output
-    regardless of whether the CSV uses XC1234 or xc1234.wav format.
-    """
-    splits = {}
-    with open(csv_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            parts = line.split(',', 1)
-            if len(parts) != 2:
-                continue
-            key, split = parts[0].strip(), parts[1].strip()
-            if key in ('filename', 'file_id'):
-                continue  # skip header
-            key = key.lower()
-            if not key.endswith('.wav'):
-                key += '.wav'
-            splits[key] = split
-    return splits
-
-
-def load_data_from_csv(csv_path, flat_dir, gmin, gmax, n_mels,
-                       augmentation_mode='none', time_shift_ms=100,
-                       pitch_shift_steps=2, mixup_alpha=0.2):
-    """
-    Load data using a flat directory + splits CSV.
-
-    The CSV maps filename -> split (train/val/test).
-    Files are discovered in flat_dir/{class_name}/{filename}.
-    """
-    if augmentation_mode == 'none':
-        print("\n⚠ WARNING: No augmentation enabled")
-        print("  For better results, try --augment, --mixup, or --specaugment\n")
-
-    splits = parse_splits_csv(csv_path)
-
-    X_test, y_test, test_paths = [], [], []
-    X_val, y_val, val_paths = [], [], []
-    X_train, y_train, train_paths = [], [], []
-    labels = {}
-    idx = 0
-    failed_files = []
-    csv_hits = 0
-    csv_misses = 0
-
-    # Build lookup: filename -> (class_name, full_path)
-    file_lookup = {}
-    for class_name in sorted(os.listdir(flat_dir)):
-        class_dir = os.path.join(flat_dir, class_name)
-        if not os.path.isdir(class_dir) or class_name.startswith('.'):
-            continue
-        for f in os.listdir(class_dir):
-            if f.endswith('.wav'):
-                file_lookup[f] = (class_name, os.path.join(class_dir, f))
-
-    # Count totals for progress bar
-    total_files = 0
-    train_count = 0
-    for fn in splits:
-        if fn in file_lookup:
-            total_files += 1
-            if splits[fn] == 'train':
-                train_count += 1
-
-    if augmentation_mode in ['baseline', 'specaugment']:
-        total_files += train_count
-
-    print(f"\nDataset Structure: CSV-based split from {csv_path}")
-    print(f"  Flat dir: {flat_dir}")
-    print(f"  CSV entries: {len(splits)}")
-    print(f"  Files found: {len(file_lookup)}")
-
-    print(f"\nAugmentation Strategy:")
-    if augmentation_mode == 'baseline':
-        print(f"  Train: baseline augmentation (time/pitch shift)")
-    elif augmentation_mode == 'mixup':
-        print(f"  Train: mixup (alpha={mixup_alpha})")
-    elif augmentation_mode == 'specaugment':
-        print(f"  Train: SpecAugment (freq/time masking)")
-    else:
-        print(f"  Train: no augmentation")
-    print(f"  Total samples to process: {total_files}")
-
-    with tqdm(total=total_files, desc="Loading from CSV splits", unit="file") as pbar:
-        for target_split in ['test', 'val', 'train']:
-            for fn, split in sorted(splits.items()):
-                if split != target_split:
-                    continue
-                if fn not in file_lookup:
-                    csv_misses += 1
-                    continue
-
-                csv_hits += 1
-                class_name, full_path = file_lookup[fn]
-
-                if class_name not in labels:
-                    labels[class_name] = idx
-                    idx += 1
-
-                try:
-                    audio, _ = librosa.load(full_path, sr=TARGET_SR)
-                    audio = audio[:FIXED_AUDIO_LENGTH] if len(audio) > FIXED_AUDIO_LENGTH else \
-                        np.pad(audio, (0, FIXED_AUDIO_LENGTH - len(audio)))
-
-                    spec = compute_spec(audio, TARGET_SR, gmin, gmax, n_mels)
-
-                    if split == 'test':
-                        X_test.append(spec)
-                        y_test.append(labels[class_name])
-                        test_paths.append(full_path)
-                        pbar.update(1)
-                    elif split == 'val':
-                        X_val.append(spec)
-                        y_val.append(labels[class_name])
-                        val_paths.append(full_path)
-                        pbar.update(1)
-                    elif split == 'train':
-                        X_train.append(spec)
-                        y_train.append(labels[class_name])
-                        train_paths.append(full_path)
-                        pbar.update(1)
-
-                        if augmentation_mode == 'baseline':
-                            aug_audio = augment_baseline(audio, TARGET_SR, time_shift_ms, pitch_shift_steps)
-                            aug_spec = compute_spec(aug_audio, TARGET_SR, gmin, gmax, n_mels)
-                            X_train.append(aug_spec)
-                            y_train.append(labels[class_name])
-                            train_paths.append(full_path + "_aug")
-                            pbar.update(1)
-                        elif augmentation_mode == 'specaugment':
-                            aug_spec = augment_specaugment(spec)
-                            X_train.append(aug_spec)
-                            y_train.append(labels[class_name])
-                            train_paths.append(full_path + "_specaug")
-                            pbar.update(1)
-
-                except Exception as e:
-                    failed_files.append(f"{full_path}: {str(e)}")
-                    if split == 'train' and augmentation_mode in ['baseline', 'specaugment']:
-                        pbar.update(2)
-                    else:
-                        pbar.update(1)
-                    continue
-
-    X_test = np.array(X_test, dtype=np.float32)
-    y_test = np.array(y_test, dtype=np.int32)
-    X_val = np.array(X_val, dtype=np.float32)
-    y_val = np.array(y_val, dtype=np.int32)
-    X_train = np.array(X_train, dtype=np.float32)
-    y_train = np.array(y_train, dtype=np.int32)
-
-    if csv_misses > 0:
-        print(f"\n⚠ Warning: {csv_misses} CSV entries had no matching file in {flat_dir}")
-
-    if len(failed_files) > 0:
-        print(f"\n⚠ Warning: {len(failed_files)} files failed to load")
-        with open('data_loading_errors.txt', 'w') as f:
-            for error in failed_files:
-                f.write(error + '\n')
-
-    num_classes = len(labels)
-    print(f"\n✓ CSV Split Complete:")
+    print(f"\n✓ Fixed Split Complete (224×224 spectrograms):")
     print(f"  Test (held-out):        {len(X_test):5d} samples")
     print(f"  Val (held-out):         {len(X_val):5d} samples")
     print(f"  Train (w/ augment):     {len(X_train):5d} samples")
     print(f"  Total:                  {len(X_test) + len(X_val) + len(X_train):5d} samples")
-    print(f"  Classes:                {num_classes}")
-    print(f"\n  ✓ NO DATA LEAKAGE: Test and Val samples never augmented")
-    print(f"  ✓ INDEPENDENT SPLITS: True held-out evaluation (CSV-based)")
 
     return X_train, X_val, X_test, y_train, y_val, y_test, labels, len(failed_files)
 
 
-# --------------------------------------------------------------
-# CUSTOM TRAINING LOOP FOR MIXUP
-# --------------------------------------------------------------
 class MixupDataGenerator(keras.utils.Sequence):
     """Custom data generator for mixup augmentation"""
     def __init__(self, X, y, batch_size, alpha=0.2, num_classes=10):
@@ -1640,7 +1217,6 @@ class MixupDataGenerator(keras.utils.Sequence):
         X_batch = self.X[batch_indices]
         y_batch = self.y[batch_indices]
 
-        # Apply mixup
         if self.alpha > 0:
             lam = np.random.beta(self.alpha, self.alpha)
             batch_size = len(X_batch)
@@ -1648,7 +1224,6 @@ class MixupDataGenerator(keras.utils.Sequence):
 
             X_mixed = lam * X_batch + (1 - lam) * X_batch[index]
 
-            # Convert to one-hot for mixing
             y_a = keras.utils.to_categorical(y_batch, self.num_classes)
             y_b = keras.utils.to_categorical(y_batch[index], self.num_classes)
             y_mixed = lam * y_a + (1 - lam) * y_b
@@ -1665,342 +1240,199 @@ class MixupDataGenerator(keras.utils.Sequence):
 # MAIN
 # --------------------------------------------------------------
 def main():
-    # Initialize logger and config
     config = get_config()
     logger = TrainingLogger(config['output_dir'])
 
-    print(f"\nConfig:")
-    print(f"  Random seed: {config['random_seed']}")
-    print(f"  Warmup epochs: {config['warmup_epochs']}")
-    print(f"  Finetune epochs: {config['finetune_epochs']}")
-    print(f"  Batch size: {config['batch_size']}")
-    print(f"  Warmup LR: {config['warmup_lr']}")
-    print(f"  Finetune LR: {config['finetune_lr']}")
-    print(f"  Dropout: {config['dropout']}")
-    print(f"  Model: DS-CNN + SE + Residual (1c)")
+    print(f"\n3a: MobileNetV3Small pretrained 224×224 (ImageNet transfer)")
+    print(f"  Frozen warmup: {FROZEN_WARMUP_EPOCHS} epochs (lr={config['warmup_lr']})")
+    print(f"  Finetune: {config['warmup_epochs']} epochs (lr={config['finetune_lr']})")
+    print(f"  Dropout: {config['dropout1']} / {config['dropout']}")
     print(f"  Augmentation: {config['augmentation_mode']}")
-    if config['augmentation_mode'] == 'mixup':
-        print(f"  Mixup Alpha: {config['mixup_alpha']}")
-    print(f"  LR Schedule: {config['lr_schedule']}")
-    print(f"  Spectrogram: {config['n_mels']}x{TIME_FRAMES} (10ms/frame)")
-    print(f"  Splits CSV: {config['splits_csv']}")
-    print(f"  Flat dir: {config['flat_dir']}")
-    print(f"  Cache: {config['spectrogram_dir']}")
+    print(f"  Seed: {config['random_seed']}")
 
-    # Log hyperparameters
     logger.log_hyperparameters(config)
 
-    # Compute global stats (from training files only)
-    print("\nComputing global normalization stats...")
-    splits = parse_splits_csv(config['splits_csv'])
-    train_files = {fn for fn, split in splits.items() if split == 'train'}
-    global_min, global_max = compute_global_stats(
-        config['flat_dir'], config['n_mels'], allowed_files=train_files)
-
-    # Load data from CSV splits
-    print(f"\nLoading dataset from CSV splits...")
-    print("=" * 70)
+    # Load data (no global stats needed — per-sample normalisation)
+    print("Loading dataset from CSV splits...")
     X_train, X_val, X_test, y_train, y_val, y_test, class_labels, failed_count = load_data_from_csv(
         config['splits_csv'], config['flat_dir'],
-        global_min, global_max, config['n_mels'],
+        gmin=None, gmax=None,
         augmentation_mode=config['augmentation_mode'],
         time_shift_ms=config['time_shift_ms'],
         pitch_shift_steps=config['pitch_shift_steps'],
         mixup_alpha=config['mixup_alpha']
     )
-    print("=" * 70)
 
     class_names = list(class_labels.keys())
     num_classes = len(class_names)
 
-    total_samples = len(X_train) + len(X_val) + len(X_test)
-
-    print(f"\n✓ Total samples loaded: {total_samples}")
-    print(f"✓ Number of classes: {num_classes}")
-    print(f"✓ Spectrogram shape: {X_train[0].shape}")
-
-    print(f"\nFinal Split:")
-    print(f"  Train:     {len(X_train):5d} samples ({len(X_train) / total_samples * 100:.1f}%)")
-    print(f"  Val:       {len(X_val):5d} samples ({len(X_val) / total_samples * 100:.1f}%)")
-    print(f"  Test:      {len(X_test):5d} samples ({len(X_test) / total_samples * 100:.1f}%)")
-    print(f"  Total:     {total_samples:5d} samples")
-
-    # Verify class distributions
-    print(f"\nTest Set Class Distribution:")
-    for class_name, class_idx in sorted(class_labels.items(), key=lambda x: x[1]):
-        count = np.sum(y_test == class_idx)
-        print(f"  {class_name:30s}: {count:3d} samples")
-
-    print(f"\nValidation Set Class Distribution:")
-    for class_name, class_idx in sorted(class_labels.items(), key=lambda x: x[1]):
-        count = np.sum(y_val == class_idx)
-        print(f"  {class_name:30s}: {count:3d} samples")
-
-    # Log dataset info
     X_all = np.concatenate([X_train, X_val, X_test])
     y_all = np.concatenate([y_train, y_val, y_test])
     logger.log_dataset_info(X_all, y_all, class_labels, X_train, X_val, X_test, failed_count)
 
-    # Calibration set (from validation set)
-    if len(X_val) < config['calib_samples']:
-        print(f"\n⚠ Warning: Requested {config['calib_samples']} calibration samples, "
-              f"but only {len(X_val)} validation samples available")
-        config['calib_samples'] = len(X_val)
-        print(f"  Using all {config['calib_samples']} validation samples for calibration")
-
     X_calib = X_val[:config['calib_samples']]
-    print(f"\n✓ Calibration set: {len(X_calib)} samples (from validation set)")
+    print(f"\n✓ Calibration set: {len(X_calib)} samples")
 
-    # Create model
+    # Create model with pretrained weights
     print(f"\n{'=' * 70}")
-    print("CREATING DS-CNN + SE + RESIDUAL MODEL (Model 1c)")
+    print("CREATING MOBILENETV3SMALL (ImageNet pretrained)")
     print(f"{'=' * 70}")
-    model = create_dscnn_se_res(num_classes, config['input_shape'],
-                                config['dropout'])
+    model, base = create_mobilenetv3_pretrained(
+        num_classes, dropout1=config['dropout1'], dropout2=config['dropout']
+    )
     model.summary()
-
-    # Log model info
     logger.log_model_info(model)
 
-    # Prepare training data based on augmentation mode
+    # Loss and data prep
     if config['augmentation_mode'] == 'mixup':
-        # Use custom generator for mixup
         train_generator = MixupDataGenerator(
-            X_train, y_train,
-            config['batch_size'],
-            alpha=config['mixup_alpha'],
-            num_classes=num_classes
+            X_train, y_train, config['batch_size'],
+            alpha=config['mixup_alpha'], num_classes=num_classes
         )
         val_data = (X_val, keras.utils.to_categorical(y_val, num_classes))
         loss_function = 'categorical_crossentropy'
-        print("\n✓ Using Mixup data generator for training")
     else:
         train_generator = None
         val_data = (X_val, y_val)
         loss_function = 'sparse_categorical_crossentropy'
 
-    # Compile for warmup
-    model.compile(
-        optimizer=Adam(learning_rate=config['warmup_lr']),
-        loss=loss_function,
-        metrics=['accuracy']
-    )
-
-    # Stage 1: Warmup training
-    logger.start_stage("STAGE 1: WARMUP TRAINING")
+    # ── STAGE 0: frozen base warmup ──────────────────────────────────
+    logger.start_stage("STAGE 0: FROZEN BASE WARMUP")
     print(f"\n{'=' * 70}")
-    print(f"STAGE 1: WARMUP TRAINING ({config['warmup_epochs']} epochs)")
+    print(f"STAGE 0: FROZEN BASE WARMUP ({FROZEN_WARMUP_EPOCHS} epochs, base frozen)")
     print(f"{'=' * 70}")
-
+    base.trainable = False
+    model.compile(
+        optimizer=Adam(learning_rate=config['warmup_lr'], clipnorm=1.0),
+        loss=loss_function, metrics=['accuracy']
+    )
     warmup_checkpoint = os.path.join(config['output_dir'], 'warmup_best.weights.h5')
-    warmup_callbacks = [
-        callbacks.ModelCheckpoint(
-            warmup_checkpoint, monitor='val_accuracy',
-            save_best_only=True, save_weights_only=True,
-            mode='max', verbose=1
-        ),
-        callbacks.EarlyStopping(
-            monitor='val_loss', patience=15,
-            restore_best_weights=True, verbose=1
-        )
-    ]
 
-    # Add LR schedule based on config (from 4d)
-    if config['lr_schedule'] == 'cosine':
-        warmup_callbacks.append(
-            callbacks.LearningRateScheduler(
-                lambda epoch: config['warmup_lr'] * 0.5 * (1 + np.cos(np.pi * epoch / config['warmup_epochs'])),
-                verbose=0
-            )
+    if config['augmentation_mode'] == 'mixup':
+        warmup_history = model.fit(
+            train_generator, validation_data=val_data,
+            epochs=FROZEN_WARMUP_EPOCHS,
+            callbacks=[callbacks.ModelCheckpoint(warmup_checkpoint, monitor='val_accuracy',
+                       save_best_only=True, save_weights_only=True, mode='max', verbose=1)],
+            verbose=1
         )
-    elif config['lr_schedule'] == 'plateau':
-        warmup_callbacks.append(
-            callbacks.ReduceLROnPlateau(
-                monitor='val_loss', factor=0.5, patience=5,
-                min_lr=1e-7, verbose=1
-            )
+    else:
+        warmup_history = model.fit(
+            X_train, y_train, validation_data=val_data,
+            epochs=FROZEN_WARMUP_EPOCHS, batch_size=config['batch_size'],
+            callbacks=[callbacks.ModelCheckpoint(warmup_checkpoint, monitor='val_accuracy',
+                       save_best_only=True, save_weights_only=True, mode='max', verbose=1)],
+            verbose=1
         )
-    elif config['lr_schedule'] == 'both':
-        warmup_callbacks.append(
-            callbacks.ReduceLROnPlateau(
-                monitor='val_loss', factor=0.5, patience=5,
-                min_lr=1e-7, verbose=1
-            )
-        )
-        warmup_callbacks.append(
-            callbacks.LearningRateScheduler(
-                lambda epoch: config['warmup_lr'] * 0.5 * (1 + np.cos(np.pi * epoch / config['warmup_epochs'])),
-                verbose=0
-            )
-        )
+    logger.end_stage("STAGE 0: FROZEN BASE WARMUP", warmup_history)
 
-    try:
-        if config['augmentation_mode'] == 'mixup':
-            warmup_history = model.fit(
-                train_generator,
-                validation_data=val_data,
-                epochs=config['warmup_epochs'],
-                callbacks=warmup_callbacks,
-                verbose=1
-            )
-        else:
-            warmup_history = model.fit(
-                X_train, y_train,
-                validation_data=val_data,
-                epochs=config['warmup_epochs'],
-                batch_size=config['batch_size'],
-                callbacks=warmup_callbacks,
-                verbose=1
-            )
-    except Exception as e:
-        print(f"\n✗ Warmup training failed: {e}")
-        print("\nTroubleshooting suggestions:")
-        print("1. Reduce batch size: --batch_size 16")
-        print("2. Force CPU mode: --force_cpu")
-        print("3. Limit GPU memory: --gpu_memory_limit 8192")
-        raise
-
-    logger.end_stage("STAGE 1: WARMUP TRAINING", warmup_history)
-    print("\n✓ Warmup complete - best weights restored")
-
-    # Stage 2: Fine-tuning
-    logger.start_stage("STAGE 2: FINE-TUNING")
+    # ── STAGE 1: full finetune ────────────────────────────────────────
+    # Load best warmup weights before unfreezing to avoid gradient explosion.
+    # Matches Stage9: two separate model.fit calls (not initial_epoch),
+    # fresh optimizer with lower lr, fresh callbacks.
+    print(f"\n  Loading best warmup weights from {warmup_checkpoint}")
+    model.load_weights(warmup_checkpoint)
+    logger.start_stage("STAGE 1: FINETUNE (base unfrozen)")
     print(f"\n{'=' * 70}")
-    print(f"STAGE 2: FINE-TUNING ({config['finetune_epochs']} epochs)")
+    print(f"STAGE 1: FINETUNE ({config['warmup_epochs']} epochs, base unfrozen, lr={config['finetune_lr']})")
     print(f"{'=' * 70}")
-
+    base.trainable = True
     model.compile(
-        optimizer=Adam(learning_rate=config['finetune_lr']),
-        loss=loss_function,
-        metrics=['accuracy']
+        optimizer=Adam(learning_rate=config['finetune_lr'], clipnorm=1.0),
+        loss=loss_function, metrics=['accuracy']
     )
-
     finetune_checkpoint = os.path.join(config['output_dir'], 'finetune_best.weights.h5')
-    finetune_callbacks = [
-        callbacks.ModelCheckpoint(
-            finetune_checkpoint, monitor='val_accuracy',
-            save_best_only=True, save_weights_only=True,
-            mode='max', verbose=1
-        ),
-        callbacks.EarlyStopping(
-            monitor='val_loss', patience=15,
-            restore_best_weights=True, verbose=1
-        )
+    ft_callbacks = [
+        callbacks.ModelCheckpoint(finetune_checkpoint, monitor='val_accuracy',
+                                  save_best_only=True, save_weights_only=True, mode='max', verbose=1),
+        callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=1e-7, verbose=1),
+        callbacks.EarlyStopping(monitor='val_accuracy', patience=15, mode='max',
+                                restore_best_weights=True, verbose=1),
     ]
 
-    # Add LR schedule for finetune
-    if config['lr_schedule'] in ['plateau', 'both']:
-        finetune_callbacks.append(
-            callbacks.ReduceLROnPlateau(
-                monitor='val_loss', factor=0.5, patience=5,
-                min_lr=1e-8, verbose=1
-            )
+    if config['augmentation_mode'] == 'mixup':
+        finetune_history = model.fit(
+            train_generator, validation_data=val_data,
+            epochs=config['warmup_epochs'],
+            callbacks=ft_callbacks, verbose=1
         )
+    else:
+        finetune_history = model.fit(
+            X_train, y_train, validation_data=val_data,
+            epochs=config['warmup_epochs'], batch_size=config['batch_size'],
+            callbacks=ft_callbacks, verbose=1
+        )
+    logger.end_stage("STAGE 1: FINETUNE (base unfrozen)", finetune_history)
 
-    try:
-        if config['augmentation_mode'] == 'mixup':
-            finetune_history = model.fit(
-                train_generator,
-                validation_data=val_data,
-                epochs=config['finetune_epochs'],
-                callbacks=finetune_callbacks,
-                verbose=1
-            )
-        else:
-            finetune_history = model.fit(
-                X_train, y_train,
-                validation_data=val_data,
-                epochs=config['finetune_epochs'],
-                batch_size=config['batch_size'],
-                callbacks=finetune_callbacks,
-                verbose=1
-            )
-    except Exception as e:
-        print(f"\n✗ Fine-tuning failed: {e}")
-        print("\nCannot continue with invalid model. Please check:")
-        print("1. GPU memory issues - try --force_cpu or smaller --batch_size")
-        print("2. Learning rate too high - try lower --finetune_lr")
-        print("3. Model architecture issues")
-        raise
-
-    logger.end_stage("STAGE 2: FINE-TUNING", finetune_history)
-    print("\n✓ Fine-tuning complete - best weights restored")
-
-    # Plot training history
-    print("\nGenerating training plots...")
+    # Plot and save
     plot_training_history(warmup_history, finetune_history, config['output_dir'])
 
-    # Save FP32 model (.keras only, no .h5)
-    fp32_path = os.path.join(config['output_dir'], 'model_fp32.keras')
+    fp32_path = os.path.join(config['output_dir'], 'mobilenetv3_fp32.keras')
     model.save(fp32_path)
     print(f"✓ Saved FP32 model: {fp32_path}")
 
     # Evaluate FP32
     logger.start_stage("EVALUATION: FP32 (.keras)")
     print(f"\n{'=' * 70}")
-    print("EVALUATING FP32 MODEL (.keras) ON HELD-OUT TEST SET")
+    print("EVALUATING FP32 MODEL")
     print(f"{'=' * 70}")
     fp32_acc = evaluate_model(model, X_test, y_test, class_names,
                               config['output_dir'], "FP32")
     logger.log_evaluation("FP32 (.keras)", fp32_acc,
                           os.path.join(config['output_dir'], 'classification_report_fp32.txt'))
 
-    # Convert to TFLite INT8 (POST-TRAINING QUANTIZATION)
+    # Convert to TFLite INT8
     logger.start_stage("TFLITE CONVERSION (PTQ)")
     print(f"\n{'=' * 70}")
-    print("CONVERTING TO INT8 TFLITE (POST-TRAINING QUANTIZATION)")
+    print("CONVERTING TO INT8 TFLITE")
     print(f"{'=' * 70}")
-    int8_path = os.path.join(config['output_dir'], 'model_int8.tflite')
+    int8_path = os.path.join(config['output_dir'], 'mobilenetv3_int8.tflite')
     convert_to_tflite_int8(model, X_calib, int8_path)
 
     # Evaluate INT8
     logger.start_stage("EVALUATION: INT8 TFLite")
     print(f"\n{'=' * 70}")
-    print("EVALUATING INT8 TFLITE ON HELD-OUT TEST SET")
+    print("EVALUATING INT8 TFLITE")
     print(f"{'=' * 70}")
     int8_acc = evaluate_tflite(int8_path, X_test, y_test, class_names,
                                config['output_dir'])
     logger.log_evaluation("INT8 TFLite", int8_acc,
                           os.path.join(config['output_dir'], 'classification_report_int8.txt'))
 
-    # Collect model sizes
+    # Collect sizes
     model_sizes = {
         "FP32 (.keras)": f"{os.path.getsize(fp32_path) / (1024 ** 2):.2f} MB",
         "INT8 (.tflite)": f"{os.path.getsize(int8_path) / 1024:.1f} KB"
     }
 
-    # Log final results
     logger.log_final_results(fp32_acc, int8_acc, model_sizes,
-                             warmup_history, finetune_history, config, model)
+                             warmup_history, finetune_history, config)
 
-    # Console summary
+    # Summary
     drop = fp32_acc - int8_acc
     total_time = time.time() - script_start
 
     print(f"\n{'=' * 70}")
-    print("FINAL RESULTS (FIXED 90/60/450 SPLIT EVALUATION)")
+    print("FINAL RESULTS")
     print(f"{'=' * 70}")
-    print(f"Augmentation Mode:       {config['augmentation_mode']}")
-    if config['augmentation_mode'] == 'mixup':
-        print(f"Mixup Alpha:             {config['mixup_alpha']}")
-    print(f"LR Schedule:             {config['lr_schedule']}")
+    print(f"Model:                   2c_mobilenetv3_pretrained (224×224 NATIVE)")
+    print(f"Augmentation:            {config['augmentation_mode']}")
     print(f"FP32 Accuracy:           {fp32_acc:6.2f}%")
     print(f"INT8 Accuracy:           {int8_acc:6.2f}%")
     print(f"Accuracy Drop:           {drop:6.2f}%")
-    print(f"Total Execution Time:    {format_time(total_time)}")
-    print(f"\n✓ Test/Val sets were HELD-OUT during training (no data leakage)")
-    print(f"✓ Results are publication-ready and reproducible")
+    print(f"Total Time:              {format_time(total_time)}")
+    print(f"\nCompare with:")
+    print(f"  - 64×300 models (1a, 7d) for temporal resolution impact")
+    print(f"  - 2c (64×300 adapted MobileNetV3) for architecture impact")
     print(f"{'=' * 70}")
 
-    print(f"\n✓ Complete training report saved to:")
-    print(f"  {logger.log_path}")
-    print(f"\nAll results saved to: {config['output_dir']}/")
+    print(f"\n✓ Complete training report: {logger.log_path}")
+    print(f"✓ All results saved to: {config['output_dir']}/")
 
 
 if __name__ == "__main__":
     main()
 
-    # Report total execution time
     total_script_time = time.time() - script_start
     print(f"\n{'=' * 70}")
     print(f"Script completed in: {format_time(total_script_time)}")
