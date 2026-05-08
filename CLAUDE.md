@@ -174,11 +174,11 @@ Baseline (n_mels=64) from Linux authoritative run shown for reference.
 ---
 # MEL SWEEP — Series 1 MCU models (Linux/CUDA, RTX GPU)
 ---
-## Mel sweep: 1b/1c/1d/1e × n_mels ∈ {80, 96} × 3 seeds
+## Mel sweep: 1e/1i × n_mels ∈ {48, 80} × 3 seeds; 1b/1c/1d/1e × {80, 96} (broader)
 
 Platform: Linux x86_64 · Split: 80:10:10 · dropout=0.05 · warmup=70 · mixup=0.2
 Baseline (n_mels=64) from Linux authoritative run shown for reference.
-Testing whether denser mel filterbanks improve the accuracy plateau at ~93-94%.
+Testing whether denser/sparser mel filterbanks improve the accuracy plateau at ~93-94%.
 Updated incrementally as each model+mels 3-seed set completes.
 
 ### Per-seed results
@@ -202,11 +202,19 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1d | 64† | 786 | 93.89 | 94.03 | 37m |
 | 1d | 80 | — | pending | pending | — |
 | 1d | 96 | — | pending | pending | — |
+| 1e | 48 | 42 | 93.89 | 94.17 | 31m |
+| 1e | 48 | 100 | 94.17 | 94.03 | 31m |
+| 1e | 48 | 786 | 93.33 | 93.06 | 29m |
 | 1e | 64† | 42 | 94.86 | 94.44 | 40m |
 | 1e | 64† | 100 | 93.75 | 93.75 | 40m |
 | 1e | 64† | 786 | 93.75 | 94.17 | 40m |
 | 1e | 80 | — | pending | pending | — |
 | 1e | 96 | — | pending | pending | — |
+| 1i | 48 | — | pending | pending | — |
+| 1i | 64† | 42 | 93.89 | 94.44 | 24m |
+| 1i | 64† | 100 | 94.31 | 94.17 | 24m |
+| 1i | 64† | 786 | 93.47 | 93.47 | 20m |
+| 1i | 80 | — | pending | pending | — |
 
 ### Summary (n=3 seeds, Linux/CUDA)
 
@@ -221,13 +229,17 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1d | 64† | 93.24 ± 0.47 | 93.10 ± 0.67 | 32m |
 | 1d | 80 | pending | pending | — |
 | 1d | 96 | pending | pending | — |
+| 1e | 48 | 93.80 ± 0.43 | 93.75 ± 0.60 | 30m |
 | 1e | 64† | 94.12 ± 0.52 | 94.12 ± 0.28 | 40m |
 | 1e | 80 | pending | pending | — |
 | 1e | 96 | pending | pending | — |
+| 1i | 48 | pending | pending | — |
+| 1i | 64† | 93.89 ± 0.34 | 94.03 ± 0.41 | 23m |
+| 1i | 80 | pending | pending | — |
 
 > † Baseline n_mels=64 from Linux authoritative Series 1 run
-> All 4 models MCU-deployable (TFLite Micro compatible, Portenta H7)
-> Last updated: 2026-05-08 (1b×80 complete; others running)
+> All models MCU-deployable (TFLite Micro compatible, Portenta H7)
+> Last updated: 2026-05-08 (1b×80, 1e×48 complete; 1e×80, 1i×{48,80} running)
 
 ---
 # SERIES 3 — MobileNet family (12-class mygardenbird, macOS Apple M4 Pro)
