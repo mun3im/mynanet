@@ -85,6 +85,7 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 | 1g | DS+SE+Res+Att | 371.8 | 94.26 ± 0.28 | 94.21 ± 0.36 | 26m | 94.67 ± 0.08 | 94.72 ± 0.24 | 49m | — | ✗ |
 | 1h | DS+SE+Res+Att+Wide | 529.3 | 94.03 ± 0.63 | 93.89 ± 0.52 | 1h 08m | 95.32 ± 0.49 | 95.14 ± 0.24 | 2h 07m | — | ✗‡ |
 | 1i | MBV2 Inv.Res+SE | 258.7 | 93.89 ± 0.34 | 94.03 ± 0.41 | 23m | 94.49 ± 0.21 | 94.26 ± 0.44 | 42m | +0.42 | ✓ |
+| 1j | MBV3-SE (5×5 dw) | ~270 | pending | pending | — | — | — | — | — | ✓ |
 
 > † 1a: 1629.9 KB — 3× over H7 512 KB flash limit
 > ‡ 1h: 529.3 KB — exceeds H7 512 KB limit; BATCH_MATMUL also unsupported
@@ -173,42 +174,60 @@ Baseline (n_mels=64) from Linux authoritative run shown for reference.
 ---
 # MEL SWEEP — Series 1 MCU models (Linux/CUDA, RTX GPU)
 ---
-## Mel sweep: 1e + 1i (top MCU candidates) × n_mels ∈ {48, 80} × 3 seeds
+## Mel sweep: 1b/1c/1d/1e × n_mels ∈ {80, 96} × 3 seeds
 
 Platform: Linux x86_64 · Split: 80:10:10 · dropout=0.05 · warmup=70 · mixup=0.2
 Baseline (n_mels=64) from Linux authoritative run shown for reference.
-Bracketing 64 with one below (48) and one above (80). Other models/mels deferred.
-Running — updated incrementally as each model+mels 3-seed set completes.
+Testing whether denser mel filterbanks improve the accuracy plateau at ~93-94%.
+Updated incrementally as each model+mels 3-seed set completes.
 
 ### Per-seed results
 
 | Model | n_mels | Seed | FP32 % | INT8 % | Runtime |
 |-------|--------|------|--------|--------|---------|
-| 1e | 48 | — | pending | pending | — |
+| 1b | 64† | 42 | 93.33 | 93.75 | 28m |
+| 1b | 64† | 100 | 93.33 | 93.06 | 29m |
+| 1b | 64† | 786 | 92.22 | 92.36 | 29m |
+| 1b | 80 | 42 | 92.08 | 92.08 | 39m |
+| 1b | 80 | 100 | 91.53 | 91.25 | 38m |
+| 1b | 80 | 786 | 91.53 | 91.81 | 24m |
+| 1b | 96 | — | pending | pending | — |
+| 1c | 64† | 42 | 94.72 | 94.44 | 39m |
+| 1c | 64† | 100 | 93.89 | 93.33 | 39m |
+| 1c | 64† | 786 | 92.64 | 93.06 | 21m |
+| 1c | 80 | — | pending | pending | — |
+| 1c | 96 | — | pending | pending | — |
+| 1d | 64† | 42 | 93.06 | 92.50 | 31m |
+| 1d | 64† | 100 | 92.78 | 92.78 | 28m |
+| 1d | 64† | 786 | 93.89 | 94.03 | 37m |
+| 1d | 80 | — | pending | pending | — |
+| 1d | 96 | — | pending | pending | — |
 | 1e | 64† | 42 | 94.86 | 94.44 | 40m |
 | 1e | 64† | 100 | 93.75 | 93.75 | 40m |
 | 1e | 64† | 786 | 93.75 | 94.17 | 40m |
 | 1e | 80 | — | pending | pending | — |
-| 1i | 48 | — | pending | pending | — |
-| 1i | 64† | 42 | 93.89 | 94.44 | 24m |
-| 1i | 64† | 100 | 94.31 | 94.17 | 24m |
-| 1i | 64† | 786 | 93.47 | 93.47 | 20m |
-| 1i | 80 | — | pending | pending | — |
+| 1e | 96 | — | pending | pending | — |
 
 ### Summary (n=3 seeds, Linux/CUDA)
 
 | Model | n_mels | FP32 mean±sd | INT8 mean±sd | Runtime |
 |-------|--------|--------------|--------------|---------|
-| 1e | 48 | pending | pending | — |
+| 1b | 64† | 92.96 ± 0.52 | 93.06 ± 0.57 | 29m |
+| 1b | 80 | 91.71 ± 0.32 | 91.71 ± 0.42 | 34m |
+| 1b | 96 | pending | pending | — |
+| 1c | 64† | 93.75 ± 0.85 | 93.61 ± 0.60 | 33m |
+| 1c | 80 | pending | pending | — |
+| 1c | 96 | pending | pending | — |
+| 1d | 64† | 93.24 ± 0.47 | 93.10 ± 0.67 | 32m |
+| 1d | 80 | pending | pending | — |
+| 1d | 96 | pending | pending | — |
 | 1e | 64† | 94.12 ± 0.52 | 94.12 ± 0.28 | 40m |
 | 1e | 80 | pending | pending | — |
-| 1i | 48 | pending | pending | — |
-| 1i | 64† | 93.89 ± 0.34 | 94.03 ± 0.41 | 23m |
-| 1i | 80 | pending | pending | — |
+| 1e | 96 | pending | pending | — |
 
 > † Baseline n_mels=64 from Linux authoritative Series 1 run
-> Other models (1b, 1c, 1d) and n_mels=96 deferred — redo later
-> Last updated: 2026-05-08 (baselines only; 1e+1i × {48,80} running)
+> All 4 models MCU-deployable (TFLite Micro compatible, Portenta H7)
+> Last updated: 2026-05-08 (1b×80 complete; others running)
 
 ---
 # SERIES 3 — MobileNet family (12-class mygardenbird, macOS Apple M4 Pro)
@@ -271,6 +290,7 @@ Platform: macOS (darwin) · Split: 80:10:10 · dropout=0.2 · warmup=50 · mixup
 | 1g | + Multi-Head Self-Attention | 371.8 | 94.21 | ✗ |
 | 1h | 1g + wider channels | 529.3 | 93.89 | ✗‡ |
 | 1i | MBV2 inverted residual + SE | 258.7 | **94.03** | ✓ |
+| 1j | MBV3-SE (5×5 dw + hard-sigmoid) | ~270 | pending | ✓ |
 | 3b–3d | MBV3Small native (64–80 mel) | ~1998 | ~81 | ✗ (4× over) |
 | 3e–3f | MBV3Small width×0.75 | ~1270 | ~77–78 | ✗ (2.5× over) |
 
@@ -293,6 +313,7 @@ Platform: macOS (darwin) · Split: 80:10:10 · dropout=0.2 · warmup=50 · mixup
 - `1g_dscnn_se_res_att.py` — trains 1g (+ attention)
 - `1h_dscnn_se_res_att_wide.py` — trains 1h (attention + wide)
 - `1i_mbv2_se.py` — trains 1i (MBV2 inverted residual + SE, MCU compatible)
+- `1j_mbv3_se.py` — trains 1j (MBV3-SE: 5×5 dw in blocks 3-4 + hard-sigmoid SE, MCU compatible)
 - `run_seabird12_ablation.sh` — runs all 27 experiments (9 models × 3 seeds)
 - `run_mels_1c_1i.sh` — mel sweep: 1c+1i × n_mels ∈ {80,96} × 3 seeds (12 runs)
 - `run_nmels_ablation.sh` — broader mel sweep: MCU models 1b–1e × {80,96} × 3 seeds

@@ -122,6 +122,14 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1i" ]]; then
     done
 fi
 
+if [[ "$FILTER" == "all" || "$FILTER" == "1j" ]]; then
+    echo ""
+    echo "▶▶▶  1j: MBV3-SE (5x5 dw blocks 3-4, hard-sigmoid SE, MCU compatible)"
+    for seed in "${SEEDS[@]}"; do
+        run_one "1j_mbv3_se.py" "1j_mbv3_se" "$seed"
+    done
+fi
+
 echo ""
 echo "════════════════════════════════════════════════════"
 echo "  All runs complete."
