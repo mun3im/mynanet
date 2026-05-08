@@ -71,6 +71,9 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 | 1i | MBV2 Inv.Res+SE | 258.7 | 42 | 93.89 | 94.44 | 24m | 94.31 | 94.58 | 43m | ✓ |
 | 1i | | | 100 | 94.31 | 94.17 | 24m | 94.44 | 93.75 | 42m | |
 | 1i | | | 786 | 93.47 | 93.47 | 20m | 94.72 | 94.44 | 42m | |
+| 1j | MBV3-SE (5×5 dw) | 267.1 | 42 | 94.03 | 94.31 | 52m | — | — | — | ✓ |
+| 1j | | | 100 | 95.14 | 95.42 | 53m | — | — | — | |
+| 1j | | | 786 | 94.58 | 95.00 | 53m | — | — | — | |
 
 ### Summary (n=3 seeds)
 
@@ -85,18 +88,19 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 | 1g    | DS+SE+Res+Att           | 371.8   | 94.26 ± 0.28   | 94.21 ± 0.36     | 26m           | 94.67 ± 0.08   | 94.72 ± 0.24     | 49m           | —          | ✗   |
 | 1h    | DS+SE+Res+Att+Wide      | 529.3   | 94.03 ± 0.63   | 93.89 ± 0.52     | 1h 08m        | 95.32 ± 0.49   | 95.14 ± 0.24     | 2h 07m        | —          | ✗‡  |
 | 1i    | MBV2 Inv.Res+SE         | 258.7   | 93.89 ± 0.34   | 94.03 ± 0.41     | 23m           | 94.49 ± 0.21   | **94.26** ± 0.44 | 42m           | +0.42      | ✓   |
-| 1j    | MBV3-SE (5×5 dw)        | ~270    | pending        | pending          | —             | —              | —                | —             | —          | ✓   |
+| 1j    | MBV3-SE (5×5 dw)        | 267.1   | 94.58 ± 0.55   | **94.91** ± 0.56 | 52m           | —              | —                | —             | +0.88      | ✓   |
 
 > † 1a: 1629.9 KB — 3× over H7 512 KB flash limit
 > ‡ 1h: 529.3 KB — exceeds H7 512 KB limit; BATCH_MATMUL also unsupported
 > MCU ✓ = TFLite Micro compatible (Portenta H7); ✗ = BATCH_MATMUL unsupported or exceeds flash
-> Δ prev MCU = INT8 delta vs previous MCU-compatible model (1b→1c→1d→1e→1f→1i chain)
-> Last updated: 2026-05-07 (all 1a–1i complete)
+> Δ prev MCU = INT8 delta vs previous MCU-compatible model (1b→1c→1d→1e→1f→1i→1j chain)
+> Last updated: 2026-05-08 (all 1a–1j complete)
 
 ### Key findings (Linux/CUDA authoritative)
 
-- **Best MCU model: 1i** (MBV2 Inv.Res+SE) — 94.03% INT8, 258.7 KB, 23m runtime
-- **Best MCU overall: 1e** (DS+SE+Res) — 94.12% INT8, 377.2 KB — marginally higher mean, more consistent
+- **Best MCU model: 1j** (MBV3-SE 5×5 dw) — **94.91% INT8**, 267.1 KB, 52m — new best, +0.88 pp over 1i
+- **Best compact MCU: 1i** (MBV2 Inv.Res+SE) — 94.03% INT8, 258.7 KB, 23m — smallest + fastest MCU model
+- **Best DS-CNN MCU: 1e** (DS+SE+Res) — 94.12% INT8, 377.2 KB — most consistent DS-CNN
 - **1f confirms width adds nothing** without attention — 93.61% INT8, same as 1c
 - **Attention ceiling (1g)**: 94.21% INT8 — only +0.6 pp over 1e, not H7 deployable
 - **1h underperforms 1g**: wider attention model doesn't help on this task
@@ -185,14 +189,18 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1e | 64† | 100 | 93.75 | 93.75 | 40m |
 | 1e | 64† | 786 | 93.75 | 94.17 | 40m |
 | 1e | 80 | 42 | 93.19 | 93.19 | 1h04m |
-| 1e | 80 | 100 | running | running | — |
-| 1e | 80 | 786 | pending | pending | — |
+| 1e | 80 | 100 | 93.47 | 93.19 | 1h42m |
+| 1e | 80 | 786 | 91.81 | 91.81 | 49m |
 | 1e | 96 | — | pending | pending | — |
-| 1i | 48 | — | pending | pending | — |
+| 1i | 48 | 42 | 94.44 | 94.58 | 20m |
+| 1i | 48 | 100 | 95.69 | 95.56 | 20m |
+| 1i | 48 | 786 | 93.47 | 93.75 | 20m |
 | 1i | 64† | 42 | 93.89 | 94.44 | 24m |
 | 1i | 64† | 100 | 94.31 | 94.17 | 24m |
 | 1i | 64† | 786 | 93.47 | 93.47 | 20m |
-| 1i | 80 | — | pending | pending | — |
+| 1i | 80 | 42 | 93.61 | 93.61 | 31m |
+| 1i | 80 | 100 | 92.50 | 93.19 | 31m |
+| 1i | 80 | 786 | 93.75 | 93.61 | 31m |
 
 ### Summary (n=3 seeds, Linux/CUDA)
 
@@ -209,15 +217,16 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1d | 96 | pending | pending | — |
 | 1e | 48 | 93.80 ± 0.43 | 93.75 ± 0.60 | 30m |
 | 1e | 64† | 94.12 ± 0.52 | 94.12 ± 0.28 | 40m |
-| 1e | 80 | partial (1/3) | partial (1/3) | — |
+| 1e | 80 | 92.82 ± 0.89 | 92.73 ± 0.80 | 1h12m |
 | 1e | 96 | pending | pending | — |
-| 1i | 48 | pending | pending | — |
+| 1i | 48 | 94.53 ± 1.11 | **94.63** ± 0.91 | 20m |
 | 1i | 64† | 93.89 ± 0.34 | 94.03 ± 0.41 | 23m |
-| 1i | 80 | pending | pending | — |
+| 1i | 80 | 93.29 ± 0.69 | 93.47 ± 0.24 | 31m |
 
 > † Baseline n_mels=64 from Linux authoritative Series 1 run
 > All models MCU-deployable (TFLite Micro compatible, Portenta H7)
-> Last updated: 2026-05-08 (1b×80, 1e×48 complete; 1c×80+1e×80 seed42 done; seed100 running)
+> 1i×48 seed100 outlier: 95.69% FP32 / 95.56% INT8 — mean 94.63% INT8 nominally beats 1i×64 (94.03%) but high variance (±0.91%)
+> Last updated: 2026-05-08 (1e×80 complete; 1i×48+1i×80 complete; 1b/1c/1d/1e×96 and 1b/1c/1d×{48,80} not pursued)
 
 
 ---
@@ -257,7 +266,12 @@ Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmu
 | 2h    |                 |         | 100  | 67.50        | 24.72        | 36m           |            |
 | 2h    |                 |         | 786  | 62.50        | 9.17         | 36m           |            |
 | 2k    | TCN + SE        | 1480.1  | 42   | 43.19        | 13.47        | 54m           | ✗ (>512KB) |
-| 2k    |                 |         | 100  | —            | —            | incomplete    |            |
+| 2k    |                 |         | 100  | 14.03        | 8.33         | 27m           |            |
+| 2k    |                 |         | 786  | 47.64        | 10.97        | 55m           |            |
+| 2l    | TCN Multiscale  | 4201.5  | 42   | 8.33         | 8.33         | 51m           | ✗ (>512KB) |
+| 2l    |                 |         | 100  | 12.36        | 8.33         | 58m           |            |
+| 2l    |                 |         | 786  | 8.33         | 8.33         | 57m           |            |
+| 2q    | TCN Optimal     | —       | 42   | running      | —            | —             | —          |
 
 ### Summary (n=3 seeds unless noted)
 
@@ -271,9 +285,10 @@ Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmu
 | 2f    | TCN Deep        | 765.4   | 51.57 ± 4.96     | 33.33 ± 12.01† | 1h08m         | ✗ (>512KB) |
 | 2g    | TCN Kernel=2    | 430.8   | 57.46 ± 4.78     | 18.10 ± 9.22†  | 31m           | ✓ (flash)  |
 | 2h    | TCN Kernel=5    | 718.8   | 65.00 ± 2.50     | 18.01 ± 7.99†  | 36m           | ✗ (>512KB) |
-| 2k    | TCN + SE        | 1480.1  | (1/3 seeds)      | (1/3 seeds)    | —             | ✗ (>512KB) |
+| 2k    | TCN + SE        | 1480.1  | 34.95 ± 18.26    | 10.92 ± 2.57†  | 45m           | ✗ (>512KB) |
+| 2l    | TCN Multiscale  | 4201.5  | 9.67 ± 2.33 (collapsed)| 8.33 ± 0.00† | 56m | ✗ (>512KB) |
+| 2q    | TCN Optimal     | —       | running          | —              | —             | —          |
 | 2c    | TCN No Residual (Linux/CUDA) | 524.4 | pending | pending | — | ✗ (>512KB) |
-| 2l    | Pure 1D TCN (non-causal+res) | ~200  | pending | pending | — | ✓ (flash)  |
 | 2m    | 1D TCN raw audio (causal)    | ~TBD  | pending | pending | — | TBD        |
 
 > † INT8 severely degraded on macOS Metal — FP32 is the reliable metric here
@@ -349,11 +364,11 @@ Platform: macOS (darwin) · Split: 80:10:10 · dropout=0.2 · warmup=50 · mixup
 | 1g    | + Multi-Head Self-Attention     | 371.8   | 94.21          | ✗             |
 | 1h    | 1g + wider channels             | 529.3   | 93.89          | ✗‡            |
 | 1i    | MBV2 inverted residual + SE     | 258.7   | **94.03**      | ✓             |
-| 1j    | MBV3-SE (5×5 dw + hard-sigmoid) | ~270    | pending        | ✓             |
+| 1j    | MBV3-SE (5×5 dw + hard-sigmoid) | 267.1   | **94.91**      | ✓             |
 | 3b–3d | MBV3Small native (64–80 mel)    | ~1998   | ~81            | ✗ (4× over)   |
 | 3e–3f | MBV3Small width×0.75            | ~1270   | ~77–78         | ✗ (2.5× over) |
 
-> Best H7-deployable: **1e** (94.12% INT8, 377 KB) or **1i** (94.03% INT8, 259 KB — smaller)
+> Best H7-deployable: **1j** (94.91% INT8, 267 KB) — new best; **1i** (94.03% INT8, 259 KB — compact+fast); **1e** (94.12% INT8, 377 KB — best DS-CNN)
 > 1f: width alone adds nothing without attention · 1g/1h: attention ceiling ~94.2%, not H7-deployable
 > No MBV3Small variant fits H7 512 KB — smallest is width×0.75 at ~1270 KB
 > 2-series: TCN variants (pending) · 3-series: MobileNet family · 4-series: archival
@@ -391,7 +406,7 @@ Old dataset: 10-class seabird. Scripts ported to 12-class mygardenbird paths; re
 - `2i_tcn_specaugment.py` — + SpecAugment (was 4m)
 - `2j_tcn_combined.py` — combined augmentation (was 4n)
 - `2k_tcn_se.py` — + SE block (was 4o)
-- `2l_pure1d_tcn.py` — **pure 1D TCN**: non-causal padding=same, residual, LayerNorm, 8 dilated blocks [1,2,4,8,16,32,1,2]
+- `2l_tcn_residual.py` — **pre-activation causal residual TCN** (current); `2l_pure1d_tcn.py` — non-causal padding=same variant (archived)
 - `2m_tcn1d_raw.py` — **1D TCN on raw waveform** (ported from 4i): causal, 48000-sample input, dilations [1,2,4,8,16,32], 32→64 filters, BatchNorm+SpatialDropout1D
 - `2n_tcn_mild_augmentation.py` — mild augmentation (was 4r)
 - `2o_tcn_distillation.py` — knowledge distillation (was 4q)
