@@ -4,16 +4,17 @@
 # Core TCN variants for comparison:
 #   2a (baseline), 2b (shallow), 2c (no-residual), 2d (lightweight),
 #   2e (wide), 2f (deep), 2g (kernel2), 2h (kernel5),
-#   2k (SE), 2l (pure 1D non-causal residual), 2q (optimal)
+#   2k (SE), 2l (pure 1D non-causal residual), 2m (raw audio TCN), 2q (optimal)
 #
 # Identical hyperparameters for direct comparison:
 #   n_mels=64, dropout=0.3, warmup=50, mixup=0.2, split 80:10:10
 #   seeds: 42, 100, 786
+#   (2m uses raw audio input — n_mels not applicable)
 #
 # Results land in: results_mygardenbird_2_{darwin|linux}/
 #
 # Usage:
-#   bash run_mygardenbird_tcn_ablation.sh           # all 33 runs (11 models × 3 seeds)
+#   bash run_mygardenbird_tcn_ablation.sh           # all 36 runs (12 models × 3 seeds)
 #   bash run_mygardenbird_tcn_ablation.sh 2a        # only 2a (3 seeds)
 #   bash run_mygardenbird_tcn_ablation.sh 2b        # only 2b (3 seeds)
 #   bash run_mygardenbird_tcn_ablation.sh 2c        # only 2c (3 seeds)
@@ -24,6 +25,7 @@
 #   bash run_mygardenbird_tcn_ablation.sh 2h        # only 2h (3 seeds)
 #   bash run_mygardenbird_tcn_ablation.sh 2k        # only 2k (3 seeds)
 #   bash run_mygardenbird_tcn_ablation.sh 2l        # only 2l (3 seeds)
+#   bash run_mygardenbird_tcn_ablation.sh 2m        # only 2m (3 seeds)
 #   bash run_mygardenbird_tcn_ablation.sh 2q        # only 2q (3 seeds)
 
 set -euo pipefail
@@ -136,6 +138,14 @@ if [[ "$FILTER" == "all" || "$FILTER" == "2l" ]]; then
     echo "▶▶▶  2l: Pure 1D TCN (non-causal, residual, LayerNorm)"
     for seed in "${SEEDS[@]}"; do
         run_one "2l_pure1d_tcn.py" "2l_pure1d_tcn" "$seed"
+    done
+fi
+
+if [[ "$FILTER" == "all" || "$FILTER" == "2m" ]]; then
+    echo ""
+    echo "▶▶▶  2m: 1D TCN on raw audio (causal, 48000 samples, ported from 4i)"
+    for seed in "${SEEDS[@]}"; do
+        run_one "2m_tcn1d_raw.py" "2m_tcn1d_raw" "$seed"
     done
 fi
 

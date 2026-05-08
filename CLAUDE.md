@@ -274,13 +274,15 @@ Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmu
 | 2k    | TCN + SE        | 1480.1  | (1/3 seeds)      | (1/3 seeds)    | —             | ✗ (>512KB) |
 | 2c    | TCN No Residual (Linux/CUDA) | 524.4 | pending | pending | — | ✗ (>512KB) |
 | 2l    | Pure 1D TCN (non-causal+res) | ~200  | pending | pending | — | ✓ (flash)  |
+| 2m    | 1D TCN raw audio (causal)    | ~TBD  | pending | pending | — | TBD        |
 
 > † INT8 severely degraded on macOS Metal — FP32 is the reliable metric here
 > MCU ✓ (flash) = fits H7 512 KB flash; TFLite Micro op compatibility for TCN not verified
 > Best macOS FP32: 2c (no residual) = 74.54% — far below Series 1 MCU models (~93–94%)
 > 2c Linux/CUDA: pending — running to verify CUDA ceiling (macOS Metal INT8 unreliable)
 > 2l: pure 1D TCN (non-causal padding=same, residual, LayerNorm) — hypothesis: full context > causal
-> Last updated: 2026-05-08 (2a–2h complete; 2k partial; 2c Linux + 2l pending after current jobs)
+> 2m: 1D TCN on raw 48kHz waveform (ported from 4i) — tests whether spectral features can be learned end-to-end
+> Last updated: 2026-05-08 (2a–2h complete; 2k partial; 2c+2l+2m Linux pending after current jobs)
 
 
 ---
@@ -390,7 +392,7 @@ Old dataset: 10-class seabird. Scripts ported to 12-class mygardenbird paths; re
 - `2j_tcn_combined.py` — combined augmentation (was 4n)
 - `2k_tcn_se.py` — + SE block (was 4o)
 - `2l_pure1d_tcn.py` — **pure 1D TCN**: non-causal padding=same, residual, LayerNorm, 8 dilated blocks [1,2,4,8,16,32,1,2]
-- `2m_tcn_optimized.py` — optimized variant (was 4j)
+- `2m_tcn1d_raw.py` — **1D TCN on raw waveform** (ported from 4i): causal, 48000-sample input, dilations [1,2,4,8,16,32], 32→64 filters, BatchNorm+SpatialDropout1D
 - `2n_tcn_mild_augmentation.py` — mild augmentation (was 4r)
 - `2o_tcn_distillation.py` — knowledge distillation (was 4q)
 - `2p_tcn_advanced_distillation.py` — advanced distillation (was 4s)
