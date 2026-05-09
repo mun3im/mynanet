@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
-# n_mels ablation: MCU-compatible models (1b–1e) × n_mels ∈ {80, 96} × 3 seeds
+# n_mels ablation: MCU-compatible models × n_mels ∈ {48, 80} × 3 seeds
 #
-# Rationale: 1a–1e are the only MCU-compatible models (no BATCH_MATMUL).
-# Testing whether denser mel filterbanks improve the accuracy plateau at ~93-94%.
+# Rationale: testing whether sparser/denser mel filterbanks improve ~93-95% plateau.
+# 1d (DS+Res baseline) and 1j (current best MCU) are the primary targets.
 #
 # Results land in: results_mygardenbird_1_{darwin|linux}/
-# Output dirs encode n_mels (e.g. mels80_, mels96_) for easy comparison.
+# Output dirs encode n_mels (e.g. mels48_, mels80_) for easy comparison.
 #
 # Usage:
-#   bash run_nmels_ablation.sh           # all runs (5 models × 2 mel settings × 3 seeds)
+#   bash run_nmels_ablation.sh           # all runs
+#   bash run_nmels_ablation.sh 48        # only n_mels=48
 #   bash run_nmels_ablation.sh 80        # only n_mels=80
-#   bash run_nmels_ablation.sh 96        # only n_mels=96
 #   bash run_nmels_ablation.sh 1b        # only 1b (6 runs: 2 mel settings × 3 seeds)
 #   bash run_nmels_ablation.sh 1c        # only 1c
 #   bash run_nmels_ablation.sh 1d        # only 1d
 #   bash run_nmels_ablation.sh 1e        # only 1e
 #   bash run_nmels_ablation.sh 1i        # only 1i
+#   bash run_nmels_ablation.sh 1j        # only 1j (6 runs: 2 mel settings × 3 seeds)
 
 set -euo pipefail
 
@@ -95,6 +96,14 @@ for n_mels in "${NMELS_LIST[@]}"; do
         echo "▶▶▶  1i: MBV2 Inverted Residual + SE (MCU target)  [n_mels=$n_mels]"
         for seed in "${SEEDS[@]}"; do
             run_one "1i_mbv2_se.py" "1i_mbv2_se" "$seed" "$n_mels"
+        done
+    fi
+
+    if [[ "$FILTER" == "all" || "$FILTER" == "$n_mels" || "$FILTER" == "1j" ]]; then
+        echo ""
+        echo "▶▶▶  1j: MBV3-SE 5×5 dw (current best MCU)  [n_mels=$n_mels]"
+        for seed in "${SEEDS[@]}"; do
+            run_one "1j_mbv3_se.py" "1j_mbv3_se" "$seed" "$n_mels"
         done
     fi
 done

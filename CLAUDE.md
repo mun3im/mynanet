@@ -71,9 +71,9 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 | 1i | MBV2 Inv.Res+SE | 258.7 | 42 | 93.89 | 94.44 | 24m | 94.31 | 94.58 | 43m | ✓ |
 | 1i | | | 100 | 94.31 | 94.17 | 24m | 94.44 | 93.75 | 42m | |
 | 1i | | | 786 | 93.47 | 93.47 | 20m | 94.72 | 94.44 | 42m | |
-| 1j | MBV3-SE (5×5 dw) | 267.1 | 42 | 94.03 | 94.31 | 52m | — | — | — | ✓ |
-| 1j | | | 100 | 95.14 | 95.42 | 53m | — | — | — | |
-| 1j | | | 786 | 94.58 | 95.00 | 53m | — | — | — | |
+| 1j | MBV3-SE (5×5 dw) | 267.1 | 42 | 94.03 | 94.31 | 52m | 93.89 | 94.17 | 1h 20m | ✓ |
+| 1j | | | 100 | 95.14 | 95.42 | 53m | 94.72 | 95.14 | 1h 15m | |
+| 1j | | | 786 | 94.58 | 95.00 | 53m | 93.89 | 94.17 | 34m | |
 
 ### Summary (n=3 seeds)
 
@@ -88,13 +88,13 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 | 1g    | DS+SE+Res+Att           | 371.8   | 94.26 ± 0.28   | 94.21 ± 0.36     | 26m           | 94.67 ± 0.08   | 94.72 ± 0.24     | 49m           | —          | ✗   |
 | 1h    | DS+SE+Res+Att+Wide      | 529.3   | 94.03 ± 0.63   | 93.89 ± 0.52     | 1h 08m        | 95.32 ± 0.49   | 95.14 ± 0.24     | 2h 07m        | —          | ✗‡  |
 | 1i    | MBV2 Inv.Res+SE         | 258.7   | 93.89 ± 0.34   | 94.03 ± 0.41     | 23m           | 94.49 ± 0.21   | **94.26** ± 0.44 | 42m           | +0.42      | ✓   |
-| 1j    | MBV3-SE (5×5 dw)        | 267.1   | 94.58 ± 0.55   | **94.91** ± 0.56 | 52m           | —              | —                | —             | +0.88      | ✓   |
+| 1j    | MBV3-SE (5×5 dw)        | 267.1   | 94.58 ± 0.55   | **94.91** ± 0.56 | 52m           | 94.17 ± 0.48   | **94.49** ± 0.57 | 1h 03m        | +0.88      | ✓   |
 
 > † 1a: 1629.9 KB — 3× over H7 512 KB flash limit
 > ‡ 1h: 529.3 KB — exceeds H7 512 KB limit; BATCH_MATMUL also unsupported
 > MCU ✓ = TFLite Micro compatible (Portenta H7); ✗ = BATCH_MATMUL unsupported or exceeds flash
 > Δ prev MCU = INT8 delta vs previous MCU-compatible model (1b→1c→1d→1e→1f→1i→1j chain)
-> Last updated: 2026-05-08 (all 1a–1j complete)
+> Last updated: 2026-05-09 (all 1a–1j complete; 1j macOS: 94.49% INT8 mean, consistent with Linux 94.91%)
 
 ### Key findings (Linux/CUDA authoritative)
 
@@ -152,11 +152,11 @@ Baseline (n_mels=64) from Linux authoritative run shown for reference.
 ---
 # MEL SWEEP — Series 1 MCU models (Linux/CUDA, RTX GPU)
 ---
-## Mel sweep: 1e/1i × n_mels ∈ {48, 80} × 3 seeds; 1b/1c/1d/1e × {80, 96} (broader)
+## Mel sweep: 1d/1j × n_mels ∈ {48, 80} × 3 seeds (primary); 1b/1c/1e/1i also covered
 
 Platform: Linux x86_64 · Split: 80:10:10 · dropout=0.05 · warmup=70 · mixup=0.2
 Baseline (n_mels=64) from Linux authoritative run shown for reference.
-Testing whether denser/sparser mel filterbanks improve the accuracy plateau at ~93-94%.
+Testing whether sparser/denser mel filterbanks improve the accuracy plateau at ~93-95%.
 Updated incrementally as each model+mels 3-seed set completes.
 
 ### Per-seed results
@@ -177,11 +177,11 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1c | 80 | 100 | running | running | — |
 | 1c | 80 | 786 | pending | pending | — |
 | 1c | 96 | — | pending | pending | — |
+| 1d | 48 | — | pending | pending | — |
 | 1d | 64† | 42 | 93.06 | 92.50 | 31m |
 | 1d | 64† | 100 | 92.78 | 92.78 | 28m |
 | 1d | 64† | 786 | 93.89 | 94.03 | 37m |
 | 1d | 80 | — | pending | pending | — |
-| 1d | 96 | — | pending | pending | — |
 | 1e | 48 | 42 | 93.89 | 94.17 | 31m |
 | 1e | 48 | 100 | 94.17 | 94.03 | 31m |
 | 1e | 48 | 786 | 93.33 | 93.06 | 29m |
@@ -201,6 +201,11 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1i | 80 | 42 | 93.61 | 93.61 | 31m |
 | 1i | 80 | 100 | 92.50 | 93.19 | 31m |
 | 1i | 80 | 786 | 93.75 | 93.61 | 31m |
+| 1j | 48 | — | pending | pending | — |
+| 1j | 64† | 42 | 94.03 | 94.31 | 52m |
+| 1j | 64† | 100 | 95.14 | 95.42 | 53m |
+| 1j | 64† | 786 | 94.58 | 95.00 | 53m |
+| 1j | 80 | — | pending | pending | — |
 
 ### Summary (n=3 seeds, Linux/CUDA)
 
@@ -212,9 +217,9 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1c | 64† | 93.75 ± 0.85 | 93.61 ± 0.60 | 33m |
 | 1c | 80 | partial (1/3) | partial (1/3) | — |
 | 1c | 96 | pending | pending | — |
+| 1d | 48 | pending | pending | — |
 | 1d | 64† | 93.24 ± 0.47 | 93.10 ± 0.67 | 32m |
 | 1d | 80 | pending | pending | — |
-| 1d | 96 | pending | pending | — |
 | 1e | 48 | 93.80 ± 0.43 | 93.75 ± 0.60 | 30m |
 | 1e | 64† | 94.12 ± 0.52 | 94.12 ± 0.28 | 40m |
 | 1e | 80 | 92.82 ± 0.89 | 92.73 ± 0.80 | 1h12m |
@@ -222,11 +227,14 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1i | 48 | 94.53 ± 1.11 | **94.63** ± 0.91 | 20m |
 | 1i | 64† | 93.89 ± 0.34 | 94.03 ± 0.41 | 23m |
 | 1i | 80 | 93.29 ± 0.69 | 93.47 ± 0.24 | 31m |
+| 1j | 48 | pending | pending | — |
+| 1j | 64† | 94.58 ± 0.55 | **94.91** ± 0.56 | 52m |
+| 1j | 80 | pending | pending | — |
 
 > † Baseline n_mels=64 from Linux authoritative Series 1 run
 > All models MCU-deployable (TFLite Micro compatible, Portenta H7)
 > 1i×48 seed100 outlier: 95.69% FP32 / 95.56% INT8 — mean 94.63% INT8 nominally beats 1i×64 (94.03%) but high variance (±0.91%)
-> Last updated: 2026-05-08 (1e×80 complete; 1i×48+1i×80 complete; 1b/1c/1d/1e×96 and 1b/1c/1d×{48,80} not pursued)
+> Last updated: 2026-05-09 (1d×{48,80} and 1j×{48,80} running — 6+6 seeds pending)
 
 
 ---
@@ -268,10 +276,12 @@ Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmu
 | 2k    | TCN + SE        | 1480.1  | 42   | 43.19        | 13.47        | 54m           | ✗ (>512KB) |
 | 2k    |                 |         | 100  | 14.03        | 8.33         | 27m           |            |
 | 2k    |                 |         | 786  | 47.64        | 10.97        | 55m           |            |
-| 2l    | TCN Multiscale  | 4201.5  | 42   | 8.33         | 8.33         | 51m           | ✗ (>512KB) |
-| 2l    |                 |         | 100  | 12.36        | 8.33         | 58m           |            |
-| 2l    |                 |         | 786  | 8.33         | 8.33         | 57m           |            |
-| 2q    | TCN Optimal     | —       | 42   | running      | —            | —             | —          |
+| 2l    | Pre-act Causal Residual TCN | 2274.1 | 42 | 93.61       | 68.75†       | 1h 30m        | ✗ (>512KB) |
+| 2l    |                 |         | 100  | 93.33        | 69.58†       | 1h 35m        |            |
+| 2l    |                 |         | 786  | 92.08        | 59.31†       | 1h 45m        |            |
+| 2q    | TCN Optimal     | 526.8   | 42   | 69.58        | 65.56†       | 27m           | ✗ (>512KB) |
+| 2q    |                 |         | 100  | 63.06        | 16.25†       | 1h 16m        |            |
+| 2q    |                 |         | 786  | 68.61        | 32.92†       | 52m           |            |
 
 ### Summary (n=3 seeds unless noted)
 
@@ -286,18 +296,20 @@ Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmu
 | 2g    | TCN Kernel=2    | 430.8   | 57.46 ± 4.78     | 18.10 ± 9.22†  | 31m           | ✓ (flash)  |
 | 2h    | TCN Kernel=5    | 718.8   | 65.00 ± 2.50     | 18.01 ± 7.99†  | 36m           | ✗ (>512KB) |
 | 2k    | TCN + SE        | 1480.1  | 34.95 ± 18.26    | 10.92 ± 2.57†  | 45m           | ✗ (>512KB) |
-| 2l    | TCN Multiscale  | 4201.5  | 9.67 ± 2.33 (collapsed)| 8.33 ± 0.00† | 56m | ✗ (>512KB) |
-| 2q    | TCN Optimal     | —       | running          | —              | —             | —          |
+| 2l    | Pre-act Causal Residual TCN | 2274.1 | **93.01** ± 0.65 | 65.88 ± 5.50† | 1h 36m | ✗ (>512KB) |
+| 2q    | TCN Optimal     | 526.8   | 67.08 ± 3.48     | 38.24 ± 24.89† | 45m           | ✗ (>512KB) |
 | 2c    | TCN No Residual (Linux/CUDA) | 524.4 | pending | pending | — | ✗ (>512KB) |
 | 2m    | 1D TCN raw audio (causal)    | ~TBD  | pending | pending | — | TBD        |
 
 > † INT8 severely degraded on macOS Metal — FP32 is the reliable metric here
 > MCU ✓ (flash) = fits H7 512 KB flash; TFLite Micro op compatibility for TCN not verified
-> Best macOS FP32: 2c (no residual) = 74.54% — far below Series 1 MCU models (~93–94%)
+> Best macOS FP32: **2l** (pre-act causal residual) = 93.01% mean — matches Series 1 MCU models, major improvement over 2c (74.54%)
+> 2l INT8 collapsed on macOS Metal (~66% mean) — Linux/CUDA rerun needed for authoritative INT8
+> 2q FP32 67.08% mean — below 2c's 74.54%, INT8 unreliable
 > 2c Linux/CUDA: pending — running to verify CUDA ceiling (macOS Metal INT8 unreliable)
-> 2l: pure 1D TCN (non-causal padding=same, residual, LayerNorm) — hypothesis: full context > causal
+> 2l: pre-activation causal residual TCN (BN→ReLU→Conv), 2274 KB, 2.2M params — no size constraint applied
 > 2m: 1D TCN on raw 48kHz waveform (ported from 4i) — tests whether spectral features can be learned end-to-end
-> Last updated: 2026-05-08 (2a–2h complete; 2k partial; 2c+2l+2m Linux pending after current jobs)
+> Last updated: 2026-05-09 (2a–2l complete; 2q complete; 2l+2q macOS done; 2m pending)
 
 
 ---
