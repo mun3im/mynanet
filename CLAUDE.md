@@ -79,8 +79,8 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 
 | Model | Description             | INT8 KB | Linux FP32 ±sd | Linux INT8 ±sd   | Linux Runtime | macOS FP32 ±sd | macOS INT8 ±sd   | macOS Runtime | Δ prev MCU | MCU |
 | ----- | ----------------------- | ------- | -------------- | ---------------- | ------------- | -------------- | ---------------- | ------------- | ---------- | --- |
-| 1a    | Baseline 2D CNN         | 1629.9  | 93.33 ± 0.34   | 93.33 ± 0.20     | 28m           | 93.52 ± 1.34   | 93.29 ± 1.08     | 42m           | —          | ✗†  |
-| 1b    | DS-CNN                  | 289.7   | 92.96 ± 0.52   | 93.06 ± 0.57     | 29m           | 92.50 ± 1.05   | 92.36 ± 1.23     | 35m           | baseline   | ✓   |
+| 1a    | Baseline 2D CNN         | 1629.9  | 93.33 ± 0.34   | 93.33 ± 0.20     | 28m           | 93.52 ± 1.34   | 93.29 ± 1.08     | 42m           | baseline   | ✗†  |
+| 1b    | DS-CNN                  | 289.7   | 92.96 ± 0.52   | 93.06 ± 0.57     | 29m           | 92.50 ± 1.05   | 92.36 ± 1.23     | 35m           | −0.27      | ✓   |
 | 1c    | DS+SE                   | 376.9   | 93.75 ± 0.85   | 93.61 ± 0.60     | 33m           | 93.94 ± 0.40   | 93.84 ± 0.21     | 1h 05m        | +0.55      | ✓   |
 | 1d    | DS+Res                  | 294.8   | 93.24 ± 0.47   | 93.10 ± 0.67     | 32m           | 92.18 ± 0.44   | 92.27 ± 0.29     | 46m           | −0.51      | ✓   |
 | 1e    | DS+SE+Res               | 377.2   | 94.12 ± 0.52   | **94.12** ± 0.28 | 40m           | 92.27 ± 1.37   | 92.41 ± 0.88     | 1h 04m        | +1.02      | ✓   |
@@ -93,7 +93,7 @@ Platform: Linux x86_64 · Split: 80:10:10 · mels=64 · dropout=0.05 · warmup=7
 > † 1a: 1629.9 KB — 3× over H7 512 KB flash limit
 > ‡ 1h: 529.3 KB — exceeds H7 512 KB limit; BATCH_MATMUL also unsupported
 > MCU ✓ = TFLite Micro compatible (Portenta H7); ✗ = BATCH_MATMUL unsupported or exceeds flash
-> Δ prev MCU = INT8 delta vs previous MCU-compatible model (1b→1c→1d→1e→1f→1i→1j chain)
+> Δ = INT8 delta vs 1a baseline (1a→1b→1c→1d→1e→1f→1i→1j chain)
 > Last updated: 2026-05-09 (all 1a–1j complete; 1j macOS: 94.49% INT8 mean, consistent with Linux 94.91%)
 
 ### Key findings (Linux/CUDA authoritative)
@@ -152,7 +152,7 @@ Baseline (n_mels=64) from Linux authoritative run shown for reference.
 ---
 # MEL SWEEP — Series 1 MCU models (Linux/CUDA, RTX GPU)
 ---
-## Mel sweep: 1d/1j × n_mels ∈ {48, 80} × 3 seeds (primary); 1b/1c/1e/1i also covered
+## Mel sweep: 1a/1j × n_mels ∈ {48, 80} × 3 seeds (primary); 1b/1c/1e/1i also covered
 
 Platform: Linux x86_64 · Split: 80:10:10 · dropout=0.05 · warmup=70 · mixup=0.2
 Baseline (n_mels=64) from Linux authoritative run shown for reference.
@@ -177,11 +177,11 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1c | 80 | 100 | running | running | — |
 | 1c | 80 | 786 | pending | pending | — |
 | 1c | 96 | — | pending | pending | — |
-| 1d | 48 | — | pending | pending | — |
-| 1d | 64† | 42 | 93.06 | 92.50 | 31m |
-| 1d | 64† | 100 | 92.78 | 92.78 | 28m |
-| 1d | 64† | 786 | 93.89 | 94.03 | 37m |
-| 1d | 80 | — | pending | pending | — |
+| 1a | 48 | — | pending | pending | — |
+| 1a | 64† | 42 | 93.75 | 93.61 | 28m |
+| 1a | 64† | 100 | 92.92 | 93.19 | 27m |
+| 1a | 64† | 786 | 93.33 | 93.19 | 28m |
+| 1a | 80 | — | pending | pending | — |
 | 1e | 48 | 42 | 93.89 | 94.17 | 31m |
 | 1e | 48 | 100 | 94.17 | 94.03 | 31m |
 | 1e | 48 | 786 | 93.33 | 93.06 | 29m |
@@ -217,9 +217,9 @@ Updated incrementally as each model+mels 3-seed set completes.
 | 1c | 64† | 93.75 ± 0.85 | 93.61 ± 0.60 | 33m |
 | 1c | 80 | partial (1/3) | partial (1/3) | — |
 | 1c | 96 | pending | pending | — |
-| 1d | 48 | pending | pending | — |
-| 1d | 64† | 93.24 ± 0.47 | 93.10 ± 0.67 | 32m |
-| 1d | 80 | pending | pending | — |
+| 1a | 48 | pending | pending | — |
+| 1a | 64† | 93.33 ± 0.20 | 93.33 ± 0.20 | 28m |
+| 1a | 80 | pending | pending | — |
 | 1e | 48 | 93.80 ± 0.43 | 93.75 ± 0.60 | 30m |
 | 1e | 64† | 94.12 ± 0.52 | 94.12 ± 0.28 | 40m |
 | 1e | 80 | 92.82 ± 0.89 | 92.73 ± 0.80 | 1h12m |
@@ -234,7 +234,7 @@ Updated incrementally as each model+mels 3-seed set completes.
 > † Baseline n_mels=64 from Linux authoritative Series 1 run
 > All models MCU-deployable (TFLite Micro compatible, Portenta H7)
 > 1i×48 seed100 outlier: 95.69% FP32 / 95.56% INT8 — mean 94.63% INT8 nominally beats 1i×64 (94.03%) but high variance (±0.91%)
-> Last updated: 2026-05-09 (1d×{48,80} and 1j×{48,80} running — 6+6 seeds pending)
+> Last updated: 2026-05-09 (1a×{48,80} and 1j×{48,80} running — 6+6 seeds pending)
 
 
 ---

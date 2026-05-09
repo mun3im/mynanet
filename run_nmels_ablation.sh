@@ -2,7 +2,7 @@
 # n_mels ablation: MCU-compatible models × n_mels ∈ {48, 80} × 3 seeds
 #
 # Rationale: testing whether sparser/denser mel filterbanks improve ~93-95% plateau.
-# 1d (DS+Res baseline) and 1j (current best MCU) are the primary targets.
+# 1a (baseline 2D CNN) and 1j (current best MCU) are the primary targets.
 #
 # Results land in: results_mygardenbird_1_{darwin|linux}/
 # Output dirs encode n_mels (e.g. mels48_, mels80_) for easy comparison.
@@ -11,7 +11,8 @@
 #   bash run_nmels_ablation.sh           # all runs
 #   bash run_nmels_ablation.sh 48        # only n_mels=48
 #   bash run_nmels_ablation.sh 80        # only n_mels=80
-#   bash run_nmels_ablation.sh 1b        # only 1b (6 runs: 2 mel settings × 3 seeds)
+#   bash run_nmels_ablation.sh 1a        # only 1a (6 runs: 2 mel settings × 3 seeds)
+#   bash run_nmels_ablation.sh 1b        # only 1b
 #   bash run_nmels_ablation.sh 1c        # only 1c
 #   bash run_nmels_ablation.sh 1d        # only 1d
 #   bash run_nmels_ablation.sh 1e        # only 1e
@@ -57,6 +58,14 @@ for n_mels in "${NMELS_LIST[@]}"; do
     # Skip if a specific mel count was requested and doesn't match
     if [[ "$FILTER" =~ ^[0-9]+$ ]] && [[ "$FILTER" != "$n_mels" ]]; then
         continue
+    fi
+
+    if [[ "$FILTER" == "all" || "$FILTER" == "$n_mels" || "$FILTER" == "1a" ]]; then
+        echo ""
+        echo "▶▶▶  1a: Baseline 2D CNN  [n_mels=$n_mels]"
+        for seed in "${SEEDS[@]}"; do
+            run_one "1a_baseline_2dcnn.py" "1a_baseline_2dcnn" "$seed" "$n_mels"
+        done
     fi
 
     if [[ "$FILTER" == "all" || "$FILTER" == "$n_mels" || "$FILTER" == "1b" ]]; then
