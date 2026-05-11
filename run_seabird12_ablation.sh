@@ -16,6 +16,7 @@
 #   bash run_seabird12_ablation.sh 1e       # only 1e (3 seeds)
 #   bash run_seabird12_ablation.sh 1f       # only 1f (3 seeds)
 #   bash run_seabird12_ablation.sh 1g       # only 1g (3 seeds)
+#   bash run_seabird12_ablation.sh 1k       # only 1k (3 seeds) — needs CSV adaptation first
 
 set -euo pipefail
 
@@ -127,6 +128,24 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1j" ]]; then
     echo "▶▶▶  1j: MBV3-SE (5x5 dw blocks 3-4, hard-sigmoid SE, MCU compatible)"
     for seed in "${SEEDS[@]}"; do
         run_one "1j_mbv3_se.py" "1j_mbv3_se" "$seed"
+    done
+fi
+
+# NOTE: 1k uses directory-based loading (no --splits_csv/--flat_dir/--n_mels).
+# Needs adaptation to CSV splits before it can share COMMON_ARGS.
+if [[ "$FILTER" == "all" || "$FILTER" == "1k" ]]; then
+    echo ""
+    echo "▶▶▶  1k: UltraLight DS-CNN Wide (DS+Res+Wide, no SE, native 64×300 input)"
+    for seed in "${SEEDS[@]}"; do
+        echo ""
+        echo "════════════════════════════════════════════════════"
+        echo "  1k_ultralight_dscnn_wide  seed=$seed"
+        echo "════════════════════════════════════════════════════"
+        conda run -n tf215_gpu python3 "$SCRIPT_DIR/1k_ultralight_dscnn_wide.py" \
+            --dropout 0.05 \
+            --warmup_epochs 70 \
+            --mixup 0.2 \
+            --random_seed "$seed"
     done
 fi
 

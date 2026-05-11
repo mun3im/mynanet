@@ -4,7 +4,7 @@
 # Core TCN variants for comparison:
 #   2a (baseline), 2b (shallow), 2c (no-residual), 2d (lightweight),
 #   2e (wide), 2f (deep), 2g (kernel2), 2h (kernel5),
-#   2k (SE), 2l (pure 1D non-causal residual), 2m (raw audio TCN), 2q (optimal)
+#   2k (SE), 2l (pre-activation causal residual TCN), 2m (raw audio TCN), 2q (optimal)
 #
 # Identical hyperparameters for direct comparison:
 #   n_mels=64, dropout=0.3, warmup=50, mixup=0.2, split 80:10:10
@@ -54,7 +54,7 @@ run_one() {
     echo "  $label  seed=$seed"
     echo "════════════════════════════════════════════════════"
 
-    conda run -n metal python3 "$SCRIPT_DIR/$script" \
+    conda run -n tf215_gpu python3 "$SCRIPT_DIR/$script" \
         "${COMMON_ARGS[@]}" \
         --random_seed "$seed"
 }
@@ -135,9 +135,9 @@ fi
 
 if [[ "$FILTER" == "all" || "$FILTER" == "2l" ]]; then
     echo ""
-    echo "▶▶▶  2l: Pure 1D TCN (non-causal, residual, LayerNorm)"
+    echo "▶▶▶  2l: Pre-activation causal residual TCN"
     for seed in "${SEEDS[@]}"; do
-        run_one "2l_pure1d_tcn.py" "2l_pure1d_tcn" "$seed"
+        run_one "2l_tcn_residual.py" "2l_tcn_residual" "$seed"
     done
 fi
 
@@ -160,5 +160,5 @@ fi
 echo ""
 echo "════════════════════════════════════════════════════"
 echo "  All runs complete."
-echo "  Results: results_mygardenbird_2_$(python3 -c 'import platform; print(platform.system().lower())')/"
+echo "  Results: results_mygardenbird_2_$(conda run -n tf215_gpu python3 -c 'import platform; print(platform.system().lower())')/"
 echo "════════════════════════════════════════════════════"
