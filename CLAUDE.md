@@ -210,8 +210,8 @@ Platform column: L = Linux/CUDA (RTX GPU), M = macOS Metal (M4 Pro).
 ---
 ## Series 2 — TCN ablation chain
 
-Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmup=50 · mixup=0.2
-⚠ WARNING: Large FP32→INT8 drop observed — likely Metal quantization issue (same as Series 3). FP32 results more reliable.
+Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmup=50 · mixup=0.2
+Linux/CUDA authoritative for INT8. macOS Metal INT8 severely degraded (quantization bug) — macOS FP32 only used for cross-check.
 
 ### TABLE 6: Per-seed results Series 2 on Cuda & Metal
 
@@ -250,33 +250,36 @@ Platform: macOS (darwin) · Split: 80:10:10 · n_mels=64 · dropout=0.3 · warmu
 | 2q    | TCN Optimal                 | 526.8   | 42   |              |              |               | 69.58        | 65.56†       | 27m           |
 | 2q    |                             |         | 100  |              |              |               | 63.06        | 16.25†       | 1h 16m        |
 | 2q    |                             |         | 786  |              |              |               | 68.61        | 32.92†       | 52m           |
+| 2m    | 1D TCN raw audio (causal)   | 80.6    | 42   | OOM‡         |              |               |              |              |               |
 
 ### TABLE 7: Summary (n=3 seeds unless noted) Series 2
 
 | Model | Description                  | INT8 KB | Linux FP32 ±sd | Linux INT8 ±sd | Linux Runtime | macOS FP32 ±sd   | macOS INT8 ±sd | macOS Runtime | MCU        |
 | ----- | ---------------------------- | ------- | -------------- | -------------- | ------------- | ---------------- | -------------- | ------------- | ---------- |
-| 2a    | TCN Baseline                 | 526.8   |                |                |               | 62.87 ± 3.89     | 41.21 ± 3.77†  | 36m           | ✗ (>512KB) |
-| 2b    | TCN Shallow                  | 452.6   |                |                |               | 61.85 ± 5.80     | 25.14 ± 9.91†  | 28m           | ✓ (flash)  |
-| 2c    | TCN No Residual              | 524.4   |                |                |               | **74.54** ± 3.41 | 47.36 ± 7.57†  | 32m           | ✗ (>512KB) |
-| 2d    | TCN Lightweight              | 133.1   |                |                |               | 39.12 ± 3.47     | 31.48 ± 4.02†  | 13m           | ✓ (flash)  |
-| 2e    | TCN Wide                     | 526.8   |                |                |               | 49.59 ± 13.23    | 25.00 ± 5.30†  | 35m           | ✗ (>512KB) |
-| 2f    | TCN Deep                     | 765.4   |                |                |               | 51.57 ± 4.96     | 33.33 ± 12.01† | 1h08m         | ✗ (>512KB) |
-| 2g    | TCN Kernel=2                 | 430.8   |                |                |               | 57.46 ± 4.78     | 18.10 ± 9.22†  | 31m           | ✓ (flash)  |
-| 2h    | TCN Kernel=5                 | 718.8   |                |                |               | 65.00 ± 2.50     | 18.01 ± 7.99†  | 36m           | ✗ (>512KB) |
-| 2k    | TCN + SE                     | 1480.1  |                |                |               | 34.95 ± 18.26    | 10.92 ± 2.57†  | 45m           | ✗ (>512KB) |
-| 2l    | Pre-act Causal Residual TCN  | 2274.1  |                |                |               | **93.01** ± 0.65 | 65.88 ± 5.50†  | 1h 36m        | ✗ (>512KB) |
-| 2q    | TCN Optimal                  | 526.8   |                |                |               | 67.08 ± 3.48     | 38.24 ± 24.89† | 45m           | ✗ (>512KB) |
-| 2m    | 1D TCN raw audio (causal)    | ~TBD    |                |                |               | pending          | pending        | —             | TBD        |
+| 2a    | TCN Baseline                 | 526.8   | 79.63 ± 1.75   | 79.86 ± 1.69   | 14m           | 62.87 ± 3.89     | 41.21 ± 3.77†  | 36m           | ✗ (>512KB) |
+| 2b    | TCN Shallow                  | 452.6   | 81.16 ± 1.97   | 81.25 ± 1.14   | 11m           | 61.85 ± 5.80     | 25.14 ± 9.91†  | 28m           | ✓ (flash)  |
+| 2c    | TCN No Residual              | 524.4   | 82.83 ± 1.46   | **83.61** ± 1.58 | 13m         | **74.54** ± 3.41 | 47.36 ± 7.57†  | 32m           | ✗ (>512KB) |
+| 2d    | TCN Lightweight              | 133.1   | 58.43 ± 3.60   | 59.40 ± 2.73   | 6m            | 39.12 ± 3.47     | 31.48 ± 4.02†  | 13m           | ✓ (flash)  |
+| 2e    | TCN Wide                     | 526.8   | 80.46 ± 1.67   | 80.42 ± 1.73   | 13m           | 49.59 ± 13.23    | 25.00 ± 5.30†  | 35m           | ✗ (>512KB) |
+| 2f    | TCN Deep                     | 765.4   | 73.01 ± 2.93   | 72.59 ± 1.79   | 21m           | 51.57 ± 4.96     | 33.33 ± 12.01† | 1h08m         | ✗ (>512KB) |
+| 2g    | TCN Kernel=2                 | 430.8   | 73.70 ± 4.43   | 72.92 ± 4.82   | 12m           | 57.46 ± 4.78     | 18.10 ± 9.22†  | 31m           | ✓ (flash)  |
+| 2h    | TCN Kernel=5                 | 718.8   | 80.79 ± 2.23   | 80.09 ± 2.23   | 14m           | 65.00 ± 2.50     | 18.01 ± 7.99†  | 36m           | ✗ (>512KB) |
+| 2k    | TCN + SE                     | 1480.1  | 85.19 ± 1.86   | 85.14 ± 2.27   | 16m           | 34.95 ± 18.26    | 10.92 ± 2.57†  | 45m           | ✗ (>512KB) |
+| 2l    | Pre-act Causal Residual TCN  | 2274.1  | **92.27** ± 1.03 | **92.22** ± 1.23 | 14m       | **93.01** ± 0.65 | 65.88 ± 5.50†  | 1h 36m        | ✗ (>512KB) |
+| 2q    | TCN Optimal                  | 526.8   | pending        | pending        | —             | 67.08 ± 3.48     | 38.24 ± 24.89† | 45m           | ✗ (>512KB) |
+| 2m    | 1D TCN raw audio (causal)    | 80.6    | OOM (seed42)   | —              | —             | pending          | pending        | —             | ✓ (flash)  |
 
-> - † INT8 severely degraded on macOS Metal — FP32 is the reliable metric here
+> - † INT8 severely degraded on macOS Metal — confirmed quantization bug; Linux INT8 ≈ FP32 (max 1 pp diff) across all models
+> - ‡ 2m OOM: ResourceExhaustedError on GPU — 48000-sample raw sequences too large for batch training; needs smaller batch or chunked input
 > - MCU ✓ (flash) = fits H7 512 KB flash; TFLite Micro op compatibility for TCN not verified
-> - Best macOS FP32: **2l** (pre-act causal residual) = 93.01% mean — matches Series 1 MCU models, major improvement over 2c (74.54%)
-> - 2l INT8 collapsed on macOS Metal (~66% mean) — Linux/CUDA rerun needed for authoritative INT8
-> - 2q FP32 67.08% mean — below 2c's 74.54%, INT8 unreliable
-> - 2c Linux/CUDA: pending — running to verify CUDA ceiling (macOS Metal INT8 unreliable)
+> - **Best Linux**: 2l = 92.27% FP32 / **92.22% INT8** — only TCN variant approaching Series 1 MCU models (~94%)
+> - **2l Linux INT8 = 92.22%** vs macOS 65.88% — confirms Metal quantization was the bug, not the model
+> - **2k (TCN+SE)** = 85.19% Linux FP32 — best within 512 KB limit (1480 KB > limit but strongest compact result)
+> - **2c no-residual**: 83.61% INT8 > 82.83% FP32 on Linux — INT8 slightly helps; best residual-free TCN
+> - **2q** Linux pending — blocked by 2m OOM (set -euo pipefail stopped the run)
 > - 2l: pre-activation causal residual TCN (BN→ReLU→Conv), 2274 KB, 2.2M params — no size constraint applied
-> - 2m: 1D TCN on raw 48kHz waveform (ported from 4i) — tests whether spectral features can be learned end-to-end
-> Last updated: 2026-05-09 (2a–2l complete; 2q complete; 2l+2q macOS done; 2m pending)
+> - 2m: 80.6 KB INT8, fits H7 flash — needs batch size reduction or gradient checkpointing to train
+> Last updated: 2026-05-10 (2a–2l Linux/CUDA authoritative complete; 2m OOM; 2q pending Linux rerun)
 
 
 ---
