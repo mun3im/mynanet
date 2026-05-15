@@ -17,6 +17,7 @@
 #   bash run_seabird12_ablation.sh 1f       # only 1f (3 seeds)
 #   bash run_seabird12_ablation.sh 1g       # only 1g (3 seeds)
 #   bash run_seabird12_ablation.sh 1k       # only 1k (3 seeds) — needs CSV adaptation first
+#   bash run_seabird12_ablation.sh 1l       # only 1l (3 seeds) — DS-CNN no BN, 3 blocks
 
 set -euo pipefail
 
@@ -144,6 +145,47 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1k" ]]; then
         conda run -n tf215_gpu python3 "$SCRIPT_DIR/1k_ultralight_dscnn_wide.py" \
             --dropout 0.05 \
             --warmup_epochs 70 \
+            --mixup 0.2 \
+            --random_seed "$seed"
+    done
+fi
+
+if [[ "$FILTER" == "all" || "$FILTER" == "1l" ]]; then
+    echo ""
+    echo "▶▶▶  1l: Depthwise Separable CNN (no BN, 3 blocks, ~80K params)"
+    for seed in "${SEEDS[@]}"; do
+        run_one "1l_depthwise_cnn.py" "1l_depthwise_cnn" "$seed"
+    done
+fi
+
+if [[ "$FILTER" == "all" || "$FILTER" == "1p" ]]; then
+    echo ""
+    echo "▶▶▶  1p: MBV3-SE + Hard-Swish (1j + hard-swish in blocks 3-4, same size)"
+    for seed in "${SEEDS[@]}"; do
+        run_one "1p_mbv3_se_hs.py" "1p_mbv3_se_hs" "$seed"
+    done
+fi
+
+if [[ "$FILTER" == "all" || "$FILTER" == "1q" ]]; then
+    echo ""
+    echo "▶▶▶  1q: EfficientNet-SE (1j + EfficientNet SE on output channels, se_ratio=0.25)"
+    for seed in "${SEEDS[@]}"; do
+        run_one "1q_efficientnet_se.py" "1q_efficientnet_se" "$seed"
+    done
+fi
+
+if [[ "$FILTER" == "all" || "$FILTER" == "1r" ]]; then
+    echo ""
+    echo "▶▶▶  1r: EfficientNetB0 pretrained (accuracy ceiling, NOT MCU-deployable)"
+    for seed in "${SEEDS[@]}"; do
+        echo ""
+        echo "════════════════════════════════════════════════════"
+        echo "  1r_efficientnetb0  seed=$seed"
+        echo "════════════════════════════════════════════════════"
+        conda run -n tf215_gpu python3 "$SCRIPT_DIR/1r_efficientnetb0.py" \
+            --splits_csv "$SPLITS_CSV" \
+            --flat_dir   "$FLAT_DIR" \
+            --n_mels 224 \
             --mixup 0.2 \
             --random_seed "$seed"
     done

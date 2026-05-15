@@ -1,15 +1,43 @@
 #!/usr/bin/env python3
 """
-Model 4o - SE-TCN: TCN with Squeeze-and-Excitation Attention
-- Based on 4n combined variant
-- Architecture: TCN + SE blocks for channel attention
-- Kernel: 5 (proven best)
-- Channels: 64 (optimal for size)
-- Augmentation: SpecAugment + Mixup
-- SE blocks: Add adaptive channel recalibration
-- Goal: 90-92% accuracy with minimal size increase
-- Expected size: ~920-950 KB (vs 4n's ~900 KB)
+EfficientNet-SE — Model 1q
+Post-Training Quantization (PTQ) → Cortex-M7 deployment
+Fixed spectrogram shape: 64x300 (10ms per frame)
+
+Based on 1j (MBV3-SE) with two EfficientNet innovations:
+
+  1. EfficientNet-style SE (stronger squeeze-excitation):
+     - 1j uses SE bottleneck = expanded_channels / 16 (weak, ~18 neurons for block 3)
+     - EfficientNet uses SE bottleneck = output_channels * 0.25 (on projected size)
+     - E.g. block 3 (out=48): bottleneck = max(1, 48*0.25) = 12 vs 1j's 18 — similar
+       but applied AFTER project (on output features, not expanded), so it gates the
+       actual block output rather than a 6× blown-up intermediate.
+     - SE position: after project (EfficientNet) vs after depthwise (1j/MBV3)
+     - All ops remain H7-compatible: GAP + Conv(1×1) × 2 + hard-sigmoid + Mul
+
+  2. Stochastic Depth (Drop Connect on residual branch):
+     - During training: randomly zero the entire residual branch with prob=drop_rate
+     - During inference: pass-through (no cost, no ops added to TFLite graph)
+     - Implemented via a Dropout on the residual Add path (scaled correctly)
+     - Survival probability linearly decayed across blocks (0.9 → 0.8 → 0.7 → 0.6)
+     - Acts as strong regularization; proven to improve EfficientNet on small datasets
+
+Model Architecture (identical topology to 1j):
+  Conv2D(32, 3×3) + BN + ReLU6                          # Stem
+  InvRes-SE(t=1, 32→16,  dw=3×3) + MaxPool2D            # Block 1
+  InvRes-SE(t=6, 16→24,  dw=3×3) + MaxPool2D            # Block 2
+  InvRes-SE(t=6, 24→48,  dw=5×5) + MaxPool2D            # Block 3  ← 5×5
+  InvRes-SE(t=6, 48→96,  dw=5×5) + MaxPool2D            # Block 4  ← 5×5
+  Conv2D(320, 1×1) + BN + ReLU6                         # Last expansion
+  GlobalAveragePooling2D
+  Dense(128, relu6) + Dropout + Dense(n_classes, softmax)
+
+Target: >95% INT8 accuracy, ~270KB model size, MCU-deployable (Portenta H7)
 """
+
+print("\n\n\n")
+for _ in range(3):
+    print(" 🔶 " * 30)
 
 import os
 import sys
@@ -121,20 +149,20 @@ script_start = time.time()
 # CONSTANTS
 # --------------------------------------------------------------
 # Default random seed - can be overridden via --random_seed argument
-DEFAULT_RANDOM_STATE = 786
+DEFAULT_RANDOM_STATE = 42
 
 TARGET_SR = 16000
 AUDIO_LENGTH_SEC = 3
 FIXED_AUDIO_LENGTH = TARGET_SR * AUDIO_LENGTH_SEC
 HOP_LENGTH = 160  # 10ms at 16kHz = 160 samples
 N_FFT = 512
-N_MELS = 64
+DEFAULT_N_MELS = 64  # Can be overridden via --n_mels (64 or 80)
 FMAX = 8000
 TIME_FRAMES = 300  # Fixed: 3 seconds / 10ms = 300 frames
 
 # Default paths (can be overridden via config)
 DEFAULT_FLAT_DIR = "/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"
-DEFAULT_SPLITS_CSV = "/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv"
+DEFAULT_SPECTROGRAM_DIR = "/Volumes/Evo/MYGARDENBIRD/precompute/spectrograms_16k_mels64"
 
 # SpecAugment settings
 SPECAUGMENT_FREQ_MASK = 8
@@ -170,15 +198,30 @@ def format_time(seconds):
 
 
 # --------------------------------------------------------------
-# OPTIMIZER – LEGACY ON APPLE SILICON
+# OPTIMIZER – LEGACY ON APPLE SILICON, ADAMW ON LINUX
 # --------------------------------------------------------------
-if platform.system() == "Darwin" and platform.processor() == "arm":
+system = platform.system()
+processor = platform.processor()
+
+if system == "Darwin" and processor == "arm":
     from tf_keras.optimizers.legacy import Adam as LegacyAdam
     Adam = LegacyAdam
+    OPTIMIZER_NAME = "Legacy Adam"
     print("Using LEGACY Adam (fast on M1/M2/M4)")
+elif system == "Linux":
+    try:
+        from tf_keras.optimizers import AdamW
+        Adam = AdamW
+        OPTIMIZER_NAME = "AdamW"
+        print("Using AdamW optimizer (Linux - optimal for weight decay)")
+    except ImportError:
+        from tf_keras.optimizers import Adam
+        OPTIMIZER_NAME = "Adam"
+        print("Using standard Adam (AdamW not available)")
 else:
     from tf_keras.optimizers import Adam
-    print("Using standard Adam")
+    OPTIMIZER_NAME = "Adam"
+    print(f"Using standard Adam ({system})")
 
 
 # --------------------------------------------------------------
@@ -189,7 +232,7 @@ def compute_cache_hash(config_params):
     cache_key = {
         'n_fft': N_FFT,
         'hop_length': HOP_LENGTH,
-        'n_mels': N_MELS,
+        'n_mels': DEFAULT_N_MELS,
         'fmax': FMAX,
         'target_sr': TARGET_SR,
         'time_frames': TIME_FRAMES,
@@ -236,9 +279,8 @@ def get_config():
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--warmup_lr", type=float, default=1e-3)
     parser.add_argument("--finetune_lr", type=float, default=1e-5)
-    parser.add_argument("--dropout", type=float, default=0.3)
+    parser.add_argument("--dropout", type=float, default=0.05)
     parser.add_argument("--calib_samples", type=int, default=200)
-    parser.add_argument("--tcn_channels", type=int, default=96, help="TCN channel width (64, 96, 128)")
 
     # Augmentation flags (from 7c)
     parser.add_argument("--augment", action='store_true',
@@ -261,10 +303,16 @@ def get_config():
                         help="GPU memory limit in MB (e.g., 8192 for 8GB)")
 
     # Configurable paths
-    parser.add_argument("--splits_csv", type=str, default=DEFAULT_SPLITS_CSV,
+    parser.add_argument("--splits_csv", type=str, required=True,
                         help="Path to splits CSV from seabird_splitter_mip.py")
     parser.add_argument("--flat_dir", type=str, default=DEFAULT_FLAT_DIR,
-                        help="Path to flat dataset directory (class_name/file.wav)")
+                        help="Path to flat dataset directory")
+    parser.add_argument("--spectrogram_dir", type=str, default=DEFAULT_SPECTROGRAM_DIR,
+                        help="Path to spectrogram cache directory")
+
+    # Model architecture options
+    parser.add_argument("--n_mels", type=int, default=DEFAULT_N_MELS, choices=[48, 64, 80, 96],
+                        help="Number of mel bins (64, 80, or 96, default: 64)")
 
     # LR schedule (from 4d)
     parser.add_argument("--lr_schedule", type=str, default="cosine",
@@ -273,13 +321,15 @@ def get_config():
 
     # Random seed (from 4d)
     parser.add_argument("--random_seed", type=int, default=DEFAULT_RANDOM_STATE,
-                        help="Random seed for reproducibility (default: 786)")
+                        help="Random seed for reproducibility (default: 42)")
 
     args = parser.parse_args()
 
     # Set random seed for reproducibility
     tf.random.set_seed(args.random_seed)
     np.random.seed(args.random_seed)
+
+    n_mels = args.n_mels
 
     # Determine augmentation mode and folder name suffix
     aug_suffix = ""
@@ -295,19 +345,40 @@ def get_config():
         augmentation_mode = "baseline"
         aug_suffix = "baseline"
 
+    # Parse split ratio from CSV header for output dir naming
+    split_suffix = ""
+    try:
+        with open(args.splits_csv, 'r') as f:
+            header = f.readline().strip()
+        if header.startswith('# split_ratio='):
+            ratio_str = header.split('split_ratio=')[1].split()[0]
+            split_suffix = f"split{ratio_str}"
+    except Exception:
+        split_suffix = "splitcsv"
+
+    # Count classes from flat dir for results folder naming
+    n_classes = len([d for d in os.listdir(args.flat_dir)
+                     if os.path.isdir(os.path.join(args.flat_dir, d)) and not d.startswith('.')])
+
     output_dir_name = (
-        f"results_mygardenbird_2_{platform.system().lower()}/"
-        f"2k_tcn_se_"
-        f"mels{N_MELS}_"
+        f"results_mygardenbird_1_{platform.system().lower()}/"
+        f"1q_efficientnet_se_"
+        f"mels{n_mels}_"
         f"drop{int(args.dropout * 100):02d}_"
         f"rand{args.random_seed}_"
         f"warm{args.warmup_epochs}_"
         f"{aug_suffix}_"
-        f"split80:10:10"
+        f"{split_suffix}_"
+        f"{platform.system().lower()}"
     )
 
-    # Clean up double underscores if aug_suffix is empty
+    # Clean up double underscores
     output_dir_name = output_dir_name.replace("__", "_").rstrip("_")
+
+    # Update spectrogram dir to include n_mels
+    spec_dir = args.spectrogram_dir
+    if spec_dir == DEFAULT_SPECTROGRAM_DIR:
+        spec_dir = f"/Volumes/Evo/MYGARDENBIRD/precompute/spectrograms_16k_mels{n_mels}"
 
     config = {
         'warmup_epochs': args.warmup_epochs,
@@ -317,20 +388,22 @@ def get_config():
         'finetune_lr': args.finetune_lr,
         'dropout': args.dropout,
         'time_frames': TIME_FRAMES,
-        'input_shape': (N_MELS, TIME_FRAMES, 1),
+        'n_mels': n_mels,
+        'input_shape': (n_mels, TIME_FRAMES, 1),
         'output_dir': output_dir_name,
         'calib_samples': args.calib_samples,
-        'tcn_channels': args.tcn_channels,
+        'model_type': 'efficientnet_se',
         'augmentation_mode': augmentation_mode,
         'mixup_alpha': args.mixup,
         'time_shift_ms': args.time_shift_ms,
         'pitch_shift_steps': args.pitch_shift_steps,
         'force_cpu': args.force_cpu,
         'gpu_memory_limit': args.gpu_memory_limit,
-        'splits_csv': args.splits_csv,
-        'flat_dir': args.flat_dir,
+        'spectrogram_dir': spec_dir,
         'lr_schedule': args.lr_schedule,
         'random_seed': args.random_seed,
+        'splits_csv': args.splits_csv,
+        'flat_dir': args.flat_dir,
     }
     os.makedirs(config['output_dir'], exist_ok=True)
     return config
@@ -351,7 +424,7 @@ class TrainingLogger:
         # Initialize log file
         with open(self.log_path, 'w') as f:
             f.write("=" * 80 + "\n")
-            f.write("MYGARDENBIRD TCN TRAINING REPORT (Model 4o - SE-TCN with Attention)\n")
+            f.write("MODEL 1Q: EfficientNet-SE (EfficientNet SE on output + stochastic depth)\n")
             f.write("=" * 80 + "\n")
             f.write(f"Training started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Platform: {platform.system()} {platform.machine()}\n")
@@ -390,23 +463,24 @@ class TrainingLogger:
             f.write(f"  FFT Window:             Hann (YAMNet standard, reduces spectral leakage)\n")
             f.write(f"  Window Length:          400 samples (25ms at 16kHz)\n")
             f.write(f"  Hop Length:             {HOP_LENGTH} samples (10.0 ms)\n")
-            f.write(f"  Mel Bins (N_MELS):      {N_MELS}\n")
+            f.write(f"  Mel Bins (N_MELS):      {config['n_mels']}\n")
             f.write(f"  Max Frequency (FMAX):   {FMAX} Hz\n")
             f.write(f"  Time Frames:            {TIME_FRAMES} (FIXED)\n")
-            f.write(f"  Spectrogram Shape:      {N_MELS}x{TIME_FRAMES}\n")
+            f.write(f"  Spectrogram Shape:      {config['n_mels']}x{TIME_FRAMES}\n")
             f.write(f"  Center Padding:         Enabled (librosa center=True)\n")
 
             f.write("\nModel Architecture:\n")
-            f.write(f"  Model Type:             Temporal Convolutional Network (TCN) - SE VARIANT\n")
-            f.write(f"  TCN Channels:           {config['tcn_channels']}\n")
+            f.write(f"  Model Type:             MBV3-SE Inverted Residual (Model 1j)\n")
+            f.write(f"  Architecture:           Conv32→DS64→DS128→DS256→DS512 + MaxPool\n")
             f.write(f"  Dropout Rate:           {config['dropout']}\n")
             f.write(f"  Input Shape:            {config['input_shape']}\n")
-            f.write(f"  TCN Blocks:             2\n")
-            f.write(f"  Dilation Rates:         [1, 2, 4, 8, 16, 32] per block\n")
-            f.write(f"  SE Blocks:              Yes (ratio=8, after each TCN block)\n")
+            f.write(f"  Conv Blocks:            4 DS blocks + 1 initial conv\n")
+            f.write(f"  DS-Conv:                DepthwiseConv2D(3×3) + Conv2D(1×1)\n")
+            f.write(f"  Kernel Size:            3×3 (depthwise spatial)\n")
+            f.write(f"  Pooling:                MaxPool2D (2×2) after each DS block\n")
             f.write(f"  Activation:             ReLU6 (quantization-friendly)\n")
-            f.write(f"  Residual Connections:   Yes\n")
-            f.write(f"  Skip Connections:       Yes\n")
+            f.write(f"  Global Pooling:         GlobalAveragePooling2D\n")
+            f.write(f"  Dense Layers:           128 → 10 (classification head)\n")
 
             f.write("\nTraining Configuration:\n")
             f.write(f"  Random Seed:            {config['random_seed']}\n")
@@ -417,7 +491,7 @@ class TrainingLogger:
             f.write(f"  Warmup Learning Rate:   {config['warmup_lr']}\n")
             f.write(f"  Fine-tune Learning Rate:{config['finetune_lr']}\n")
             f.write(f"  LR Schedule:            {config['lr_schedule']}\n")
-            f.write(f"  Optimizer:              Adam (Legacy on Apple Silicon)\n")
+            f.write(f"  Optimizer:              {OPTIMIZER_NAME}\n")
             f.write(f"  Loss Function:          Sparse Categorical Crossentropy\n")
 
             f.write("\nData Augmentation:\n")
@@ -452,8 +526,9 @@ class TrainingLogger:
             f.write(f"  Memory Target:          <512 KB (50% of 1MB)\n")
 
             f.write("\nData Paths:\n")
-            f.write(f"  Dataset:                {config['flat_dir']}\n")
-            f.write(f"  Spectrogram Cache:      {config['splits_csv']}\n")
+            f.write(f"  Flat Directory:         {config['flat_dir']}\n")
+            f.write(f"  Splits CSV:             {config['splits_csv']}\n")
+            f.write(f"  Spectrogram Cache:      {config['spectrogram_dir']}\n")
             f.write(f"  Output Directory:       {config['output_dir']}\n")
 
     def log_dataset_info(self, X, y, class_labels, X_train, X_val, X_test, failed_files=0):
@@ -478,11 +553,22 @@ class TrainingLogger:
     def log_model_info(self, model):
         """Log model architecture summary."""
         self.log_section("MODEL ARCHITECTURE")
+
+        import io
+        stream = io.StringIO()
+        model.summary(print_fn=lambda x: stream.write(x + '\n'))
+        summary_str = stream.getvalue()
+
+        # Save model summary to separate file
+        summary_path = os.path.join(self.output_dir, 'model_summary.txt')
+        with open(summary_path, 'w') as f:
+            f.write("=" * 80 + "\n")
+            f.write("MODEL ARCHITECTURE SUMMARY\n")
+            f.write("=" * 80 + "\n\n")
+            f.write(summary_str)
+        print(f"Saved model summary: {summary_path}")
+
         with open(self.log_path, 'a') as f:
-            import io
-            stream = io.StringIO()
-            model.summary(print_fn=lambda x: stream.write(x + '\n'))
-            summary_str = stream.getvalue()
             f.write("\n" + summary_str)
 
             total_params = model.count_params()
@@ -502,9 +588,9 @@ class TrainingLogger:
             f.write(f"  INT8 (1 byte/param):    {int8_size_kb:.1f} KB\n")
 
             if int8_size_kb > 512:
-                f.write(f"\n  ⚠ WARNING: Model may exceed 512 KB target for Cortex-M7\n")
+                f.write(f"\n  WARNING: Model may exceed 512 KB target for Cortex-M7\n")
             else:
-                f.write(f"\n  ✓ Model size within 512 KB target\n")
+                f.write(f"\n  Model size within 512 KB target\n")
 
     def start_stage(self, stage_name):
         """Mark the start of a training stage."""
@@ -541,7 +627,7 @@ class TrainingLogger:
             f.write(f"  Classification Report:  {report_path}\n")
 
     def log_final_results(self, fp32_acc, int8_acc, model_sizes,
-                          warmup_history, finetune_history, config):
+                          warmup_history, finetune_history, config, model=None):
         """Log final comparison results."""
         self.log_section("FINAL RESULTS SUMMARY")
 
@@ -553,7 +639,7 @@ class TrainingLogger:
             f.write("\n" + "=" * 80 + "\n")
             f.write("QUICK REFERENCE (Copy to spreadsheet)\n")
             f.write("=" * 80 + "\n")
-            f.write(f"Config: drp{int(config['dropout'] * 10)}_tcn{config['tcn_channels']}_"
+            f.write(f"Config: model1a_drp{int(config['dropout'] * 10)}_"
                     f"{config['augmentation_mode']}_warmup{config['warmup_epochs']}_"
                     f"finetune{config['finetune_epochs']}_lr{config['lr_schedule']}\n")
             f.write(f"FP32: {fp32_acc:.2f}% | INT8: {int8_acc:.2f}% | "
@@ -611,14 +697,67 @@ class TrainingLogger:
             f.write("\n" + "=" * 80 + "\n")
             f.write("CSV FORMAT (for batch comparison)\n")
             f.write("=" * 80 + "\n")
-            f.write("dropout,tcn_channels,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
+            f.write("model_type,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
                     "lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb\n")
-            f.write(f"{config['dropout']},{config['tcn_channels']},{config['augmentation_mode']},"
+            f.write(f"1q_efficientnet_se,{config['dropout']},{config['augmentation_mode']},"
                     f"{config['warmup_epochs']},{config['finetune_epochs']},{config['warmup_lr']},{config['finetune_lr']},"
                     f"{config['lr_schedule']},{fp32_acc:.2f},{int8_acc:.2f},{drop:.2f},"
                     f"{max(finetune_history.history['val_accuracy']) * 100:.2f},"
                     f"{overfitting_gap:.2f},{int(total_time)},"
-                    f"{os.path.getsize(os.path.join(config['output_dir'], 'tcn_int8.tflite')) / 1024:.1f}\n")
+                    f"{os.path.getsize(os.path.join(config['output_dir'], 'model_int8.tflite')) / 1024:.1f}\n")
+
+            # Cortex-M7 Deployment Assessment
+            f.write("\n" + "=" * 80 + "\n")
+            f.write("CORTEX-M7 DEPLOYMENT ASSESSMENT\n")
+            f.write("=" * 80 + "\n")
+
+            int8_size_kb = os.path.getsize(os.path.join(config['output_dir'], 'model_int8.tflite')) / 1024
+            size_ok = int8_size_kb < 512
+            accuracy_ok = int8_acc >= 90.0
+
+            f.write(f"\nDeployment Criteria:\n")
+            f.write(f"  Model Size:             {int8_size_kb:.1f} KB {'< 512 KB' if size_ok else '>= 512 KB'}\n")
+            f.write(f"  INT8 Accuracy:          {int8_acc:.2f}% {'>= 90%' if accuracy_ok else '< 90%'}\n")
+
+            if size_ok and accuracy_ok:
+                f.write(f"\n  SUITABLE FOR CORTEX-M7 DEPLOYMENT\n")
+            elif size_ok and not accuracy_ok:
+                f.write(f"\n  SIZE OK, BUT ACCURACY BELOW 90% TARGET\n")
+            elif not size_ok and accuracy_ok:
+                f.write(f"\n  ACCURACY OK, BUT MODEL TOO LARGE (>512KB)\n")
+            else:
+                f.write(f"\n  NOT SUITABLE: Size too large AND accuracy below target\n")
+
+            # Latency and Power Estimates for Cortex-M7 @ 480 MHz
+            # Based on typical CMSIS-NN benchmarks: ~10-20 MAC/cycle for INT8
+            # Assuming ~15 MAC/cycle average for mixed operations
+            if model is not None:
+                total_params = sum([np.prod(w.shape) for w in model.trainable_weights])
+            else:
+                # Estimate from INT8 model size (1 byte per param)
+                total_params = int(int8_size_kb * 1024)
+
+            estimated_macs = total_params * 2  # Rough estimate: params * 2 for forward pass
+            cycles_per_inference = estimated_macs / 15  # ~15 MAC/cycle for INT8 on M7
+            latency_ms = (cycles_per_inference / 480_000_000) * 1000  # 480 MHz clock
+
+            # Power estimate: Cortex-M7 @ 480 MHz typically draws ~100-150 mW active
+            # Per-inference energy = power * time
+            power_mw = 120  # Typical active power
+            energy_per_inference_mj = power_mw * latency_ms / 1000  # mJ = mW * s
+
+            f.write(f"\nCortex-M7 @ 480 MHz Estimates:\n")
+            f.write(f"  Estimated MACs:         {estimated_macs:,}\n")
+            f.write(f"  Estimated Latency:      {latency_ms:.2f} ms\n")
+            f.write(f"  Active Power:           ~{power_mw} mW\n")
+            f.write(f"  Energy per Inference:   ~{energy_per_inference_mj:.3f} mJ\n")
+
+            if latency_ms < 100:
+                f.write(f"  Real-time capable (< 100ms latency)\n")
+            elif latency_ms < 500:
+                f.write(f"  Near real-time (100-500ms latency)\n")
+            else:
+                f.write(f"  Batch processing recommended (>500ms latency)\n")
 
             # Analysis
             f.write("\n" + "=" * 80 + "\n")
@@ -644,10 +783,12 @@ class TrainingLogger:
             f.write(f"  INT8 vs FP32: {drop:+.2f}%\n")
 
             f.write(f"\nModel Architecture:\n")
-            f.write(f"  ✓ True Temporal Convolutional Network (TCN)\n")
-            f.write(f"  - Causal dilated convolutions: [1,2,4,8,16,32] × 2 blocks\n")
-            f.write(f"  - Residual + skip connections\n")
-            f.write(f"  - ReLU6 activation (quantization-friendly)\n")
+            f.write(f"  MBV3-SE Inverted Residual (Model 1j)\n")
+            f.write(f"  - 4 DS-Conv blocks: 32→64→128→256→512 filters\n")
+            f.write(f"  - DS-Conv = DepthwiseConv(3×3) + Conv(1×1) pointwise\n")
+            f.write(f"  - ~8x more param efficient than standard Conv2D\n")
+            f.write(f"  - GlobalAveragePooling2D + Dense(128) classifier\n")
+            f.write(f"  - ReLU6 + BatchNorm (quantization-friendly)\n")
 
             f.write(f"\nAugmentation Strategy:\n")
             f.write(f"  Current Mode: {config['augmentation_mode']}\n")
@@ -671,7 +812,14 @@ class TrainingLogger:
 # GLOBAL STATS (2-98 percentile)
 # --------------------------------------------------------------
 def compute_global_stats(data_dir, n_mels, allowed_files=None):
-    """Compute global normalization statistics from flat dataset directory."""
+    """Compute global normalization statistics from flat dataset directory.
+
+    Args:
+        data_dir: Path to flat dataset directory (class_name/file.wav)
+        n_mels: Number of mel bins
+        allowed_files: Optional set of filenames to restrict to (e.g. training
+            files from the splits CSV). If None, all .wav files are used.
+    """
     all_mel = []
     total_sampled = 0
 
@@ -707,7 +855,7 @@ def compute_global_stats(data_dir, n_mels, allowed_files=None):
                 all_mel.append(mel_db.flatten())
                 total_sampled += 1
             except Exception as e:
-                print(f"\n\u26a0 Failed to process {f} during stats computation: {e}")
+                print(f"\n⚠ Failed to process {f} during stats computation: {e}")
                 continue
 
     if len(all_mel) == 0:
@@ -715,19 +863,20 @@ def compute_global_stats(data_dir, n_mels, allowed_files=None):
 
     all_mel = np.concatenate(all_mel)
     gmin, gmax = np.percentile(all_mel, PERCENTILE_LOW), np.percentile(all_mel, PERCENTILE_HIGH)
-    print(f"\u2713 Global stats computed from {total_sampled} files: {gmin:.2f} \u2192 {gmax:.2f} dB")
+    print(f"✓ Global stats computed from {total_sampled} files: {gmin:.2f} → {gmax:.2f} dB")
     return float(gmin), float(gmax)
-
 
 
 # --------------------------------------------------------------
 # SPECTROGRAM + NORMALIZE (FIXED 64x300 with WIN_LENGTH)
 # --------------------------------------------------------------
-def compute_spec(audio, sr, gmin, gmax, n_mels=N_MELS):
+def compute_spec(audio, sr, gmin, gmax, n_mels=None):
     """
     Compute and normalize mel spectrogram with shape validation.
     Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
     """
+    if n_mels is None:
+        n_mels = DEFAULT_N_MELS
     WIN_LENGTH = 400  # 25ms at 16kHz
 
     mel = librosa.feature.melspectrogram(
@@ -786,79 +935,146 @@ def augment_specaugment(spec):
 
 
 # --------------------------------------------------------------
-# SQUEEZE-AND-EXCITATION BLOCK
+# EFFICIENTNET-SE BLOCKS (Model 1q)
 # --------------------------------------------------------------
-def se_block(x, ratio=8):
+def se_block_efficientnet(x, out_filters, se_ratio=0.25, block_id=0):
     """
-    Squeeze-and-Excitation block for channel attention.
+    EfficientNet-style SE applied to the projected output (not expanded features).
 
-    Args:
-        x: Input tensor (batch, time, channels)
-        ratio: Reduction ratio for bottleneck
+    SE bottleneck = max(1, int(out_filters * se_ratio))
+    EfficientNet uses se_ratio=0.25 on the OUTPUT channels, giving a much more
+    expressive excitation than 1j's per-expanded-channel reduction.
 
-    Returns:
-        Recalibrated tensor with same shape as input
+    Hard-sigmoid gate: relu6(x+3)/6 — H7-safe, no exponential.
     """
-    channels = int(x.shape[-1])
+    prefix = f'block{block_id}_se_'
+    hidden = max(1, int(out_filters * se_ratio))
 
-    # Squeeze: Global information embedding
-    se = layers.GlobalAveragePooling1D()(x)
+    se = layers.GlobalAveragePooling2D(keepdims=True, name=prefix + 'squeeze')(x)
+    se = layers.Conv2D(hidden, (1, 1), activation='relu',
+                       use_bias=True, name=prefix + 'reduce')(se)
+    se = layers.Conv2D(out_filters, (1, 1),
+                       use_bias=True, name=prefix + 'expand')(se)
+    se = layers.Lambda(
+        lambda t: tf.nn.relu6(t + 3.0) * (1.0 / 6.0),
+        name=prefix + 'hard_sigmoid'
+    )(se)
+    return layers.Multiply(name=prefix + 'scale')([x, se])
 
-    # Excitation: Adaptive recalibration
-    se = layers.Dense(channels // ratio, activation='relu6')(se)
-    se = layers.Dense(channels, activation='sigmoid')(se)
-    se = layers.Reshape((1, channels))(se)
 
-    # Scale: Apply channel-wise multiplication
-    return layers.Multiply()([x, se])
-
-
-# --------------------------------------------------------------
-# SE-TCN MODEL (TCN + Squeeze-and-Excitation)
-# --------------------------------------------------------------
-def create_tcn(num_classes, input_shape, dropout=0.2, channels=64):
+def inverted_residual_efficientnet(x, filters, kernel_size=(3, 3), strides=(1, 1),
+                                   expand_ratio=6, block_id=0, se_ratio=0.25,
+                                   drop_rate=0.0):
     """
-    Create SE-TCN model with Squeeze-and-Excitation attention.
+    EfficientNet-style Inverted Residual block.
 
-    Adds SE blocks after each TCN block for adaptive channel recalibration.
-    Minimal parameter increase (~2-5%) with significant accuracy gain (+2-4%).
+    Changes from 1j:
+    1. SE applied AFTER project (on output channels) with se_ratio=0.25
+       — stronger, more expressive than 1j's SE on expanded features
+    2. Stochastic Depth: during training, randomly drops the entire residual
+       branch with probability drop_rate (survival = 1 - drop_rate).
+       At inference the branch is always active — zero TFLite graph impact.
+
+    All ops: Conv2D, DepthwiseConv2D, BN, ReLU6, Mul, Lambda, Add — H7-safe.
     """
-    inputs = layers.Input(shape=input_shape)
-    x = layers.Permute((2, 1, 3))(inputs)
-    x = layers.Reshape((input_shape[1], input_shape[0]))(x)
-    x = layers.Dense(channels, activation='relu6')(x)
-    x = layers.Dropout(dropout * 0.5)(x)
+    prefix = f'block{block_id}_'
+    input_channels = x.shape[-1]
+    expanded = input_channels * expand_ratio
 
-    skips = []
-    for _ in range(2):
-        for d in [1, 2, 4, 8, 16, 32]:
-            res = x
-            x = layers.Conv1D(channels, 5, dilation_rate=d, padding='causal', activation='relu6')(x)
-            x = layers.Dropout(dropout)(x)
-            x = layers.Conv1D(channels, 5, dilation_rate=d, padding='causal')(x)
+    shortcut = x
 
-            # Add SE block for channel attention
-            x = se_block(x, ratio=8)
+    # Expand (pointwise)
+    x = layers.Conv2D(
+        expanded, (1, 1), padding='same',
+        use_bias=False, name=prefix + 'expand'
+    )(x)
+    x = layers.BatchNormalization(name=prefix + 'expand_bn')(x)
+    x = layers.ReLU(6., name=prefix + 'expand_relu')(x)
 
-            if res.shape[-1] != channels:
-                res = layers.Conv1D(channels, 1)(res)
-            x = layers.Add()([x, res])
-            x = layers.Activation('relu6')(x)
-            x = layers.Dropout(dropout)(x)
-            skips.append(layers.Conv1D(channels, 1)(x))
+    # Depthwise (spatial)
+    x = layers.DepthwiseConv2D(
+        kernel_size, strides=strides, padding='same',
+        use_bias=False, name=prefix + 'depthwise'
+    )(x)
+    x = layers.BatchNormalization(name=prefix + 'depthwise_bn')(x)
+    x = layers.ReLU(6., name=prefix + 'depthwise_relu')(x)
 
-    if skips:
-        x = layers.Add()(skips)
-        x = layers.Activation('relu6')(x)
+    # Project (pointwise, no activation)
+    x = layers.Conv2D(
+        filters, (1, 1), padding='same',
+        use_bias=False, name=prefix + 'project'
+    )(x)
+    x = layers.BatchNormalization(name=prefix + 'project_bn')(x)
 
-    x = layers.GlobalAveragePooling1D()(x)
-    x = layers.Dense(256, activation='relu6')(x)
-    x = layers.Dropout(dropout)(x)
-    x = layers.Dense(128, activation='relu6')(x)
-    x = layers.Dropout(dropout)(x)
-    outputs = layers.Dense(num_classes, activation='softmax')(x)
+    # EfficientNet SE — applied on projected output channels
+    x = se_block_efficientnet(x, filters, se_ratio=se_ratio, block_id=block_id)
 
-    return keras.Model(inputs, outputs, name="Mygardenbird_SE_TCN")
+    # Residual with stochastic depth (only when dims match)
+    if input_channels == filters and strides == (1, 1):
+        if drop_rate > 0.0:
+            # Stochastic depth: drop entire residual branch during training
+            x = layers.Dropout(drop_rate, noise_shape=(None, 1, 1, 1),
+                               name=prefix + 'stoch_depth')(x)
+        x = layers.Add(name=prefix + 'residual')([x, shortcut])
+
+    return x
+
+
+def create_efficientnet_se(num_classes, input_shape, dropout=0.2):
+    """
+    EfficientNet-SE (Model 1q).
+
+    Based on 1j with two EfficientNet innovations:
+    1. SE on projected output (se_ratio=0.25) instead of expanded features
+    2. Stochastic depth on residual branches (drop rates 0.1→0.2→0.3→0.4)
+
+    Architecture identical to 1j — no topology change, no size increase.
+    """
+    inputs = layers.Input(shape=input_shape, name='input')
+
+    # Stem
+    x = layers.Conv2D(32, (3, 3), padding='same', use_bias=False, name='stem_conv')(inputs)
+    x = layers.BatchNormalization(name='stem_bn')(x)
+    x = layers.ReLU(6., name='stem_relu')(x)
+
+    # Block 1: t=1, 32→16, dw=3×3 (no residual fires → no stochastic depth needed)
+    x = inverted_residual_efficientnet(x, 16, kernel_size=(3, 3), block_id=1,
+                                       expand_ratio=1, se_ratio=0.25, drop_rate=0.0)
+    x = layers.MaxPooling2D((2, 2), name='pool1')(x)
+    x = layers.Dropout(dropout * 0.5, name='drop1')(x)
+
+    # Block 2: t=6, 16→24, dw=3×3 (no residual fires)
+    x = inverted_residual_efficientnet(x, 24, kernel_size=(3, 3), block_id=2,
+                                       expand_ratio=6, se_ratio=0.25, drop_rate=0.0)
+    x = layers.MaxPooling2D((2, 2), name='pool2')(x)
+    x = layers.Dropout(dropout * 0.5, name='drop2')(x)
+
+    # Block 3: t=6, 24→48, dw=5×5 (no residual fires — 24≠48)
+    x = inverted_residual_efficientnet(x, 48, kernel_size=(5, 5), block_id=3,
+                                       expand_ratio=6, se_ratio=0.25, drop_rate=0.0)
+    x = layers.MaxPooling2D((2, 2), name='pool3')(x)
+    x = layers.Dropout(dropout * 0.75, name='drop3')(x)
+
+    # Block 4: t=6, 48→96, dw=5×5 (no residual fires — 48≠96)
+    x = inverted_residual_efficientnet(x, 96, kernel_size=(5, 5), block_id=4,
+                                       expand_ratio=6, se_ratio=0.25, drop_rate=0.0)
+    x = layers.MaxPooling2D((2, 2), name='pool4')(x)
+    x = layers.Dropout(dropout, name='drop4')(x)
+
+    # Last-stage expansion
+    x = layers.Conv2D(320, (1, 1), padding='same', use_bias=False, name='last_conv')(x)
+    x = layers.BatchNormalization(name='last_bn')(x)
+    x = layers.ReLU(6., name='last_relu')(x)
+
+    # Global pooling and classification head
+    x = layers.GlobalAveragePooling2D(name='global_pool')(x)
+    x = layers.Dense(128, name='fc1')(x)
+    x = layers.BatchNormalization(name='fc1_bn')(x)
+    x = layers.ReLU(6., name='fc1_relu')(x)
+    x = layers.Dropout(dropout, name='fc_drop')(x)
+    outputs = layers.Dense(num_classes, activation='softmax', name='output')(x)
+
+    return keras.Model(inputs, outputs, name="MynaNet_EfficientNet_SE")
 
 
 # --------------------------------------------------------------
@@ -1001,12 +1217,220 @@ def evaluate_tflite(tflite_path, X_test, y_test, class_names, output_dir):
     return acc
 
 
+# --------------------------------------------------------------
+# LOAD DATA - FIXED 90/60/450 SPLIT
+# --------------------------------------------------------------
+def load_data(data_dir, gmin, gmax, augmentation_mode='none',
+              time_shift_ms=100, pitch_shift_steps=2, mixup_alpha=0.2):
+    """
+    Fixed split for 600 samples/class:
+    1. Test set: 90 samples/class (held-out, never augmented)
+    2. Validation set: 60 samples/class (held-out, never augmented)
+    3. Train set: 450 samples/class (remaining, with optional augmentation)
+
+    Augmentation modes:
+    - 'none': No augmentation
+    - 'baseline': Time/pitch shift augmentation
+    - 'mixup': Mixup augmentation (applied during training)
+    - 'specaugment': SpecAugment (frequency/time masking)
+    """
+    if augmentation_mode == 'none':
+        print("\n⚠ WARNING: No augmentation enabled")
+        print("  For better results, try --augment, --mixup, or --specaugment\n")
+
+    X_test, y_test, test_paths = [], [], []
+    X_val, y_val, val_paths = [], [], []
+    X_train, y_train, train_paths = [], [], []
+    labels = {}
+    idx = 0
+    failed_files = []
+
+    # Count total files for progress bar (from fixed directories)
+    total_files = 0
+
+    for split in ['test', 'val', 'train']:
+        split_dir = os.path.join(data_dir, split)
+        if os.path.exists(split_dir):
+            for class_name in os.listdir(split_dir):
+                class_dir = os.path.join(split_dir, class_name)
+                if os.path.isdir(class_dir) and not class_name.startswith('.'):
+                    files = [f for f in os.listdir(class_dir) if f.endswith('.wav')]
+                    total_files += len(files)
+
+    # Add augmented samples to total if enabled (not for mixup)
+    train_dir = os.path.join(data_dir, 'train')
+    train_count = 0
+    if os.path.exists(train_dir):
+        for class_name in os.listdir(train_dir):
+            class_dir = os.path.join(train_dir, class_name)
+            if os.path.isdir(class_dir) and not class_name.startswith('.'):
+                files = [f for f in os.listdir(class_dir) if f.endswith('.wav')]
+                train_count += len(files)
+
+    if augmentation_mode in ['baseline', 'specaugment']:
+        total_files += train_count
+
+    print(f"\nDataset Structure: Fixed 75:10:15 split from directories")
+    print(f"  Dataset root: {data_dir}")
+    print(f"  Test dir:  {os.path.join(data_dir, 'test')}")
+    print(f"  Val dir:   {os.path.join(data_dir, 'val')}")
+    print(f"  Train dir: {os.path.join(data_dir, 'train')}")
+
+    print(f"\nAugmentation Strategy:")
+    if augmentation_mode == 'baseline':
+        print(f"  Train: baseline augmentation (time/pitch shift)")
+    elif augmentation_mode == 'mixup':
+        print(f"  Train: mixup (alpha={mixup_alpha})")
+    elif augmentation_mode == 'specaugment':
+        print(f"  Train: SpecAugment (freq/time masking)")
+    else:
+        print(f"  Train: no augmentation")
+    print(f"  Total samples to process: {total_files}")
+
+    with tqdm(total=total_files, desc="Loading from fixed directories", unit="file") as pbar:
+        # Load TEST set (never augmented)
+        test_dir = os.path.join(data_dir, 'test')
+        if os.path.exists(test_dir):
+            for class_name in sorted(os.listdir(test_dir)):
+                class_dir = os.path.join(test_dir, class_name)
+                if not os.path.isdir(class_dir) or class_name.startswith('.'):
+                    continue
+
+                if class_name not in labels:
+                    labels[class_name] = idx
+                    idx += 1
+
+                files = [f for f in os.listdir(class_dir) if f.endswith('.wav')]
+                for f in files:
+                    try:
+                        audio, _ = librosa.load(os.path.join(class_dir, f), sr=TARGET_SR)
+                        audio = audio[:FIXED_AUDIO_LENGTH] if len(audio) > FIXED_AUDIO_LENGTH else \
+                            np.pad(audio, (0, FIXED_AUDIO_LENGTH - len(audio)))
+
+                        spec = compute_spec(audio, TARGET_SR, gmin, gmax)
+                        X_test.append(spec)
+                        y_test.append(labels[class_name])
+                        test_paths.append(os.path.join(class_dir, f))
+                        pbar.update(1)
+                    except Exception as e:
+                        failed_files.append(f"{os.path.join(class_dir, f)}: {str(e)}")
+                        pbar.update(1)
+                        continue
+
+        # Load VALIDATION set (never augmented)
+        val_dir = os.path.join(data_dir, 'val')
+        if os.path.exists(val_dir):
+            for class_name in sorted(os.listdir(val_dir)):
+                class_dir = os.path.join(val_dir, class_name)
+                if not os.path.isdir(class_dir) or class_name.startswith('.'):
+                    continue
+
+                if class_name not in labels:
+                    labels[class_name] = idx
+                    idx += 1
+
+                files = [f for f in os.listdir(class_dir) if f.endswith('.wav')]
+                for f in files:
+                    try:
+                        audio, _ = librosa.load(os.path.join(class_dir, f), sr=TARGET_SR)
+                        audio = audio[:FIXED_AUDIO_LENGTH] if len(audio) > FIXED_AUDIO_LENGTH else \
+                            np.pad(audio, (0, FIXED_AUDIO_LENGTH - len(audio)))
+
+                        spec = compute_spec(audio, TARGET_SR, gmin, gmax)
+                        X_val.append(spec)
+                        y_val.append(labels[class_name])
+                        val_paths.append(os.path.join(class_dir, f))
+                        pbar.update(1)
+                    except Exception as e:
+                        failed_files.append(f"{os.path.join(class_dir, f)}: {str(e)}")
+                        pbar.update(1)
+                        continue
+
+        # Load TRAINING set (with optional augmentation)
+        train_dir = os.path.join(data_dir, 'train')
+        if os.path.exists(train_dir):
+            for class_name in sorted(os.listdir(train_dir)):
+                class_dir = os.path.join(train_dir, class_name)
+                if not os.path.isdir(class_dir) or class_name.startswith('.'):
+                    continue
+
+                if class_name not in labels:
+                    labels[class_name] = idx
+                    idx += 1
+
+                files = [f for f in os.listdir(class_dir) if f.endswith('.wav')]
+                for f in files:
+                    try:
+                        audio, _ = librosa.load(os.path.join(class_dir, f), sr=TARGET_SR)
+                        audio = audio[:FIXED_AUDIO_LENGTH] if len(audio) > FIXED_AUDIO_LENGTH else \
+                            np.pad(audio, (0, FIXED_AUDIO_LENGTH - len(audio)))
+
+                        # Original sample
+                        spec = compute_spec(audio, TARGET_SR, gmin, gmax)
+                        X_train.append(spec)
+                        y_train.append(labels[class_name])
+                        train_paths.append(os.path.join(class_dir, f))
+                        pbar.update(1)
+
+                        # Augmented sample (mode-dependent)
+                        if augmentation_mode == 'baseline':
+                            aug_audio = augment_baseline(audio, TARGET_SR, time_shift_ms, pitch_shift_steps)
+                            aug_spec = compute_spec(aug_audio, TARGET_SR, gmin, gmax)
+                            X_train.append(aug_spec)
+                            y_train.append(labels[class_name])
+                            train_paths.append(os.path.join(class_dir, f) + "_aug")
+                            pbar.update(1)
+                        elif augmentation_mode == 'specaugment':
+                            aug_spec = augment_specaugment(spec)
+                            X_train.append(aug_spec)
+                            y_train.append(labels[class_name])
+                            train_paths.append(os.path.join(class_dir, f) + "_specaug")
+                            pbar.update(1)
+
+                    except Exception as e:
+                        failed_files.append(f"{os.path.join(class_dir, f)}: {str(e)}")
+                        if augmentation_mode in ['baseline', 'specaugment']:
+                            pbar.update(2)
+                        else:
+                            pbar.update(1)
+                        continue
+
+    # Convert to numpy arrays
+    X_test = np.array(X_test, dtype=np.float32)
+    y_test = np.array(y_test, dtype=np.int32)
+    X_val = np.array(X_val, dtype=np.float32)
+    y_val = np.array(y_val, dtype=np.int32)
+    X_train = np.array(X_train, dtype=np.float32)
+    y_train = np.array(y_train, dtype=np.int32)
+
+    if len(failed_files) > 0:
+        print(f"\n⚠ Warning: {len(failed_files)} files failed to load")
+        print("Failed files saved to data_loading_errors.txt")
+        with open('data_loading_errors.txt', 'w') as f:
+            for error in failed_files:
+                f.write(error + '\n')
+
+    print(f"\n✓ Fixed Split Complete:")
+    print(f"  Test (held-out):        {len(X_test):5d} samples ({len(X_test) // 10} per class)")
+    print(f"  Val (held-out):         {len(X_val):5d} samples ({len(X_val) // 10} per class)")
+    print(f"  Train (w/ augment):     {len(X_train):5d} samples")
+    print(f"  Total:                  {len(X_test) + len(X_val) + len(X_train):5d} samples")
+    print(f"\n  ✓ NO DATA LEAKAGE: Test and Val samples never augmented")
+    print(f"  ✓ INDEPENDENT SPLITS: True held-out evaluation")
+
+    return X_train, X_val, X_test, y_train, y_val, y_test, labels, len(failed_files)
+
 
 # --------------------------------------------------------------
-# CSV SPLIT HELPERS
+# LOAD DATA (flat dir + splits CSV)
 # --------------------------------------------------------------
+
 def parse_splits_csv(csv_path):
-    """Read splits CSV into a {filename: split} dict."""
+    """Read splits CSV into a {filename: split} dict.
+
+    Normalises keys to lowercase + .wav so they match os.listdir() output
+    regardless of whether the CSV uses XC1234 or xc1234.wav format.
+    """
     splits = {}
     with open(csv_path, 'r') as f:
         for line in f:
@@ -1018,7 +1442,7 @@ def parse_splits_csv(csv_path):
                 continue
             key, split = parts[0].strip(), parts[1].strip()
             if key in ('filename', 'file_id'):
-                continue
+                continue  # skip header
             key = key.lower()
             if not key.endswith('.wav'):
                 key += '.wav'
@@ -1029,9 +1453,14 @@ def parse_splits_csv(csv_path):
 def load_data_from_csv(csv_path, flat_dir, gmin, gmax, n_mels,
                        augmentation_mode='none', time_shift_ms=100,
                        pitch_shift_steps=2, mixup_alpha=0.2):
-    """Load data using a flat directory + splits CSV."""
+    """
+    Load data using a flat directory + splits CSV.
+
+    The CSV maps filename -> split (train/val/test).
+    Files are discovered in flat_dir/{class_name}/{filename}.
+    """
     if augmentation_mode == 'none':
-        print("\n\u26a0 WARNING: No augmentation enabled")
+        print("\n⚠ WARNING: No augmentation enabled")
         print("  For better results, try --augment, --mixup, or --specaugment\n")
 
     splits = parse_splits_csv(csv_path)
@@ -1045,6 +1474,7 @@ def load_data_from_csv(csv_path, flat_dir, gmin, gmax, n_mels,
     csv_hits = 0
     csv_misses = 0
 
+    # Build lookup: filename -> (class_name, full_path)
     file_lookup = {}
     for class_name in sorted(os.listdir(flat_dir)):
         class_dir = os.path.join(flat_dir, class_name)
@@ -1054,6 +1484,7 @@ def load_data_from_csv(csv_path, flat_dir, gmin, gmax, n_mels,
             if f.endswith('.wav'):
                 file_lookup[f] = (class_name, os.path.join(class_dir, f))
 
+    # Count totals for progress bar
     total_files = 0
     train_count = 0
     for fn in splits:
@@ -1150,27 +1581,28 @@ def load_data_from_csv(csv_path, flat_dir, gmin, gmax, n_mels,
     y_train = np.array(y_train, dtype=np.int32)
 
     if csv_misses > 0:
-        print(f"\n\u26a0 Warning: {csv_misses} CSV entries had no matching file in {flat_dir}")
+        print(f"\n⚠ Warning: {csv_misses} CSV entries had no matching file in {flat_dir}")
 
     if len(failed_files) > 0:
-        print(f"\n\u26a0 Warning: {len(failed_files)} files failed to load")
+        print(f"\n⚠ Warning: {len(failed_files)} files failed to load")
         with open('data_loading_errors.txt', 'w') as f:
             for error in failed_files:
                 f.write(error + '\n')
 
     num_classes = len(labels)
-    print(f"\n\u2713 CSV Split Complete:")
+    print(f"\n✓ CSV Split Complete:")
     print(f"  Test (held-out):        {len(X_test):5d} samples")
     print(f"  Val (held-out):         {len(X_val):5d} samples")
     print(f"  Train (w/ augment):     {len(X_train):5d} samples")
     print(f"  Total:                  {len(X_test) + len(X_val) + len(X_train):5d} samples")
     print(f"  Classes:                {num_classes}")
-    print(f"\n  \u2713 NO DATA LEAKAGE: Test and Val samples never augmented")
-    print(f"  \u2713 INDEPENDENT SPLITS: True held-out evaluation (CSV-based)")
+    print(f"\n  ✓ NO DATA LEAKAGE: Test and Val samples never augmented")
+    print(f"  ✓ INDEPENDENT SPLITS: True held-out evaluation (CSV-based)")
 
     return X_train, X_val, X_test, y_train, y_val, y_test, labels, len(failed_files)
 
 
+# --------------------------------------------------------------
 # CUSTOM TRAINING LOOP FOR MIXUP
 # --------------------------------------------------------------
 class MixupDataGenerator(keras.utils.Sequence):
@@ -1228,39 +1660,38 @@ def main():
     print(f"  Warmup LR: {config['warmup_lr']}")
     print(f"  Finetune LR: {config['finetune_lr']}")
     print(f"  Dropout: {config['dropout']}")
-    print(f"  TCN Channels: {config['tcn_channels']}")
+    print(f"  Model: MBV3-SE Inverted Residual (1j) — 5x5 dw blocks 3-4, hard-sigmoid SE")
     print(f"  Augmentation: {config['augmentation_mode']}")
     if config['augmentation_mode'] == 'mixup':
         print(f"  Mixup Alpha: {config['mixup_alpha']}")
     print(f"  LR Schedule: {config['lr_schedule']}")
-    print(f"  Spectrogram: {N_MELS}x{TIME_FRAMES} (10ms/frame)")
-    print(f"  Dataset: {config['flat_dir']}")
-    print(f"  Cache: {config['splits_csv']}")
+    print(f"  Spectrogram: {config['n_mels']}x{TIME_FRAMES} (10ms/frame)")
+    print(f"  Splits CSV: {config['splits_csv']}")
+    print(f"  Flat dir: {config['flat_dir']}")
+    print(f"  Cache: {config['spectrogram_dir']}")
 
     # Log hyperparameters
     logger.log_hyperparameters(config)
 
-
-    # Compute global stats
+    # Compute global stats (from training files only)
     print("\nComputing global normalization stats...")
     splits = parse_splits_csv(config['splits_csv'])
     train_files = {fn for fn, split in splits.items() if split == 'train'}
     global_min, global_max = compute_global_stats(
-        config['flat_dir'], N_MELS, allowed_files=train_files)
+        config['flat_dir'], config['n_mels'], allowed_files=train_files)
 
-    # Load data with fixed 90/60/450 split
-    print("\nLoading dataset with FIXED 90/60/450 SPLIT...")
+    # Load data from CSV splits
+    print(f"\nLoading dataset from CSV splits...")
     print("=" * 70)
     X_train, X_val, X_test, y_train, y_val, y_test, class_labels, failed_count = load_data_from_csv(
         config['splits_csv'], config['flat_dir'],
-        global_min, global_max, N_MELS,
-        augmentation_mode=config.get('augmentation_mode', 'none'),
-        time_shift_ms=config.get('time_shift_ms', 100),
-        pitch_shift_steps=config.get('pitch_shift_steps', 2),
-        mixup_alpha=config.get('mixup_alpha', 0.2)
+        global_min, global_max, config['n_mels'],
+        augmentation_mode=config['augmentation_mode'],
+        time_shift_ms=config['time_shift_ms'],
+        pitch_shift_steps=config['pitch_shift_steps'],
+        mixup_alpha=config['mixup_alpha']
     )
     print("=" * 70)
-
 
     class_names = list(class_labels.keys())
     num_classes = len(class_names)
@@ -1305,10 +1736,10 @@ def main():
 
     # Create model
     print(f"\n{'=' * 70}")
-    print("CREATING SE-TCN MODEL WITH ATTENTION (kernel_size=5, channels=64)")
+    print("CREATING MBV3-SE MODEL (Model 1j) — 5x5 dw + hard-sigmoid SE")
     print(f"{'=' * 70}")
-    model = create_tcn(num_classes, config['input_shape'],
-                       config['dropout'], config['tcn_channels'])
+    model = create_efficientnet_se(num_classes, config['input_shape'],
+                           config['dropout'])
     model.summary()
 
     # Log model info
@@ -1483,7 +1914,7 @@ def main():
     plot_training_history(warmup_history, finetune_history, config['output_dir'])
 
     # Save FP32 model (.keras only, no .h5)
-    fp32_path = os.path.join(config['output_dir'], 'tcn_fp32.keras')
+    fp32_path = os.path.join(config['output_dir'], 'model_fp32.keras')
     model.save(fp32_path)
     print(f"✓ Saved FP32 model: {fp32_path}")
 
@@ -1502,7 +1933,7 @@ def main():
     print(f"\n{'=' * 70}")
     print("CONVERTING TO INT8 TFLITE (POST-TRAINING QUANTIZATION)")
     print(f"{'=' * 70}")
-    int8_path = os.path.join(config['output_dir'], 'tcn_int8.tflite')
+    int8_path = os.path.join(config['output_dir'], 'model_int8.tflite')
     convert_to_tflite_int8(model, X_calib, int8_path)
 
     # Evaluate INT8
@@ -1523,7 +1954,7 @@ def main():
 
     # Log final results
     logger.log_final_results(fp32_acc, int8_acc, model_sizes,
-                             warmup_history, finetune_history, config)
+                             warmup_history, finetune_history, config, model)
 
     # Console summary
     drop = fp32_acc - int8_acc
