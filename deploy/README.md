@@ -108,6 +108,8 @@ src/mynanet_model_data.cc   ← alignas(8) const uint8_t array
 
 ## Model architecture
 
+![MynaNet architecture](mynanet_architecture.pdf)
+
 ```
 Conv2D(32, 3×3) + BN + ReLU6                         # Stem
 InvRes-SE(t=1, 32→16,  dw=3×3) + MaxPool2D           # Block 1
