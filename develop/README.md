@@ -52,7 +52,7 @@ Results are written to `results_mygardenbird_1_{darwin|linux}/`.
 ## Key findings
 
 - **Best MCU model: 1j** (MynaNet) — 94.91% INT8, 267 KB, fully H7-deployable
-- **Best compact: 1m** — 94.35% INT8, 220 KB (smallest MCU model)
+- **Smallest MCU: 1m** — 94.35% INT8, 220 KB (smallest by flash); **fastest MCU: 1i** — 94.03% INT8, 259 KB (23 min training)
 - **Best DS-CNN: 1e** — 94.12% INT8, 377 KB (most consistent DS-CNN family)
 - **Attention ceiling (1g)**: +0.09 pp over 1e, not H7-deployable (BATCH_MATMUL)
 - **Width (1f)**: no gain without attention

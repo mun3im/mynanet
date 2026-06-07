@@ -61,7 +61,7 @@ The script trains, evaluates FP32 accuracy, converts to INT8 TFLite, and evaluat
 |------|---------|-------------|
 | `--random_seed` | 42 | Reproducibility seed |
 | `--n_mels` | 64 | Mel bins — 64 is optimal; 48 also tested |
-| `--warmup_epochs` | 50 | Cosine-annealed warmup phase |
+| `--warmup_epochs` | 70 | Cosine-annealed warmup phase |
 | `--finetune_epochs` | 20 | Fine-tuning phase |
 | `--mixup` | None | Mixup alpha (0.2 recommended) |
 | `--force_cpu` | off | Disable GPU |
@@ -76,7 +76,7 @@ INT8 conversion happens automatically at the end of training. The output file is
 results_mygardenbird_1_{platform}/.../model_int8.tflite
 ```
 
-To convert manually from a saved FP32 model, use `convert_to_tflite_v2.py` in the project root.
+INT8 conversion runs automatically at the end of training.
 
 ---
 

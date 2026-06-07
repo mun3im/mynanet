@@ -265,7 +265,7 @@ def save_cache_version(cache_dir):
 # --------------------------------------------------------------
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--warmup_epochs", type=int, default=50)
+    parser.add_argument("--warmup_epochs", type=int, default=70)
     parser.add_argument("--finetune_epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--warmup_lr", type=float, default=1e-3)
