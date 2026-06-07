@@ -108,7 +108,7 @@ src/mynanet_model_data.cc   ← alignas(8) const uint8_t array
 
 ## Model architecture
 
-![MynaNet architecture](mynanet_architecture.pdf)
+![MynaNet architecture](mynanet_architecture.svg)
 
 ```
 Conv2D(32, 3×3) + BN + ReLU6                         # Stem

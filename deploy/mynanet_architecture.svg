@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MynaNet (1j_mbv3_se) architecture diagram.
+  Style matches SEABADNet fig1_architecture.svg exactly:
+    same font, same colour palette, same arrow marker, same layer-box proportions.
+
+  Layout: single column, x=60, w=400, h=44, gap=18 (step=62).
+  Rows:   0=Input, 1=Stem, 2=Block1, 3=Pool1, 4=Block2, 5=Pool2,
+          6=Block3, 7=Pool3, 8=Block4, 9=Pool4, 10=LastConv,
+          11=GAP, 12=Dense128, 13=Dropout, 14=Output
+  y_0 = 96.  y_n = 96 + n*62.
+  Total height: 96 + 14*62 + 44 + 12(legend) + 50 = 96+868+44+62 = 1070 → use 1080.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 520 1080"
+     width="520" height="1080">
+
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5"
+            markerUnits="strokeWidth" markerWidth="7" markerHeight="7"
+            orient="auto">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#9CA3AF"/>
+    </marker>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+      <feOffset dx="0" dy="2" result="offsetBlur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.13" result="color"/>
+      <feComposite in="color" in2="offsetBlur" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="520" height="1080" fill="white"/>
+
+  <!-- ══ HEADER ══ -->
+  <rect x="60" y="14" width="400" height="62" rx="7"
+        fill="#7C3D12" filter="url(#shadow)"/>
+  <text x="260" y="36" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="14" font-weight="bold" fill="white">MynaNet  (1j_mbv3_se)</text>
+  <text x="260" y="52" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#FED7AA">421 K params · 267 kB (INT8) · 94.91% top-1 accuracy (12 species)</text>
+  <text x="260" y="66" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#FED7AA">n_mels=64 · n_fft=512 · win=400 · hop=160 · Cortex-M7 &lt;45 ms</text>
+
+  <!-- ══ ROW 0  y=96  Input ══ -->
+  <rect x="60" y="96" width="400" height="44" rx="5"
+        fill="#DBEAFE" stroke="#3B82F6" stroke-width="1.5"/>
+  <text x="260" y="114" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#1E3A5F">Log-Mel Spectrogram</text>
+  <text x="260" y="129" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">64 × 300 × 1  |  16 kHz, win=400 (25 ms), hop=160 (10 ms)</text>
+  <line x1="260" y1="141" x2="260" y2="155" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 1  y=158  Stem Conv ══ -->
+  <rect x="60" y="158" width="400" height="44" rx="5"
+        fill="#FED7AA" stroke="#EA580C" stroke-width="1.5"/>
+  <text x="260" y="176" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#431407">Stem  Conv2D(32, 3×3) + BN + ReLU6</text>
+  <text x="260" y="191" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">→ 64 × 300 × 32</text>
+  <line x1="260" y1="203" x2="260" y2="217" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 2  y=220  MBV3-SE Block 1 ══ -->
+  <rect x="60" y="220" width="400" height="44" rx="5"
+        fill="#FFF7ED" stroke="#9A3412" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="260" y="238" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#431407">MBV3-SE Block 1  ·  DW 3×3, r=4</text>
+  <text x="260" y="253" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">Expand×1(32) → DW(32) → SE → Project(16)  →  64×300×16</text>
+  <line x1="260" y1="265" x2="260" y2="279" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 3  y=282  Pool1 ══ -->
+  <rect x="60" y="282" width="400" height="44" rx="5"
+        fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="260" y="300" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#2E1065">MaxPool2D (2×2)  +  Dropout (p = 0.025)</text>
+  <text x="260" y="315" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">→ 32 × 150 × 16</text>
+  <line x1="260" y1="327" x2="260" y2="341" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 4  y=344  MBV3-SE Block 2 ══ -->
+  <rect x="60" y="344" width="400" height="44" rx="5"
+        fill="#FFF7ED" stroke="#9A3412" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="260" y="362" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#431407">MBV3-SE Block 2  ·  DW 3×3, r=8</text>
+  <text x="260" y="377" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">Expand×6(96) → DW(96) → SE → Project(24)  →  32×150×24</text>
+  <line x1="260" y1="389" x2="260" y2="403" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 5  y=406  Pool2 ══ -->
+  <rect x="60" y="406" width="400" height="44" rx="5"
+        fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="260" y="424" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#2E1065">MaxPool2D (2×2)  +  Dropout (p = 0.025)</text>
+  <text x="260" y="439" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">→ 16 × 75 × 24</text>
+  <line x1="260" y1="451" x2="260" y2="465" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 6  y=468  MBV3-SE Block 3 ══ -->
+  <rect x="60" y="468" width="400" height="44" rx="5"
+        fill="#FFF7ED" stroke="#9A3412" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="260" y="486" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#431407">MBV3-SE Block 3  ·  DW 5×5, r=6</text>
+  <text x="260" y="501" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">Expand×6(144) → DW(144) → SE → Project(48)  →  16×75×48</text>
+  <line x1="260" y1="513" x2="260" y2="527" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 7  y=530  Pool3 ══ -->
+  <rect x="60" y="530" width="400" height="44" rx="5"
+        fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="260" y="548" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#2E1065">MaxPool2D (2×2)  +  Dropout (p = 0.0375)</text>
+  <text x="260" y="563" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">→ 8 × 37 × 48</text>
+  <line x1="260" y1="575" x2="260" y2="589" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 8  y=592  MBV3-SE Block 4 ══ -->
+  <rect x="60" y="592" width="400" height="44" rx="5"
+        fill="#FFF7ED" stroke="#9A3412" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="260" y="610" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#431407">MBV3-SE Block 4  ·  DW 5×5, r=6</text>
+  <text x="260" y="625" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">Expand×6(288) → DW(288) → SE → Project(96)  →  8×37×96</text>
+  <line x1="260" y1="637" x2="260" y2="651" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 9  y=654  Pool4 ══ -->
+  <rect x="60" y="654" width="400" height="44" rx="5"
+        fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="260" y="672" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#2E1065">MaxPool2D (2×2)  +  Dropout (p = 0.05)</text>
+  <text x="260" y="687" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">→ 4 × 18 × 96</text>
+  <line x1="260" y1="699" x2="260" y2="713" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 10  y=716  Last expansion Conv ══ -->
+  <rect x="60" y="716" width="400" height="44" rx="5"
+        fill="#FED7AA" stroke="#EA580C" stroke-width="1.5"/>
+  <text x="260" y="734" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#431407">Last  Conv2D(320, 1×1) + BN + ReLU6</text>
+  <text x="260" y="749" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">→ 4 × 18 × 320  |  feature expansion</text>
+  <line x1="260" y1="761" x2="260" y2="775" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 11  y=778  GAP ══ -->
+  <rect x="60" y="778" width="400" height="44" rx="5"
+        fill="#D1FAE5" stroke="#059669" stroke-width="1.5"/>
+  <text x="260" y="796" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#064E3B">GlobalAveragePooling2D</text>
+  <text x="260" y="811" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">→ (320,)  |  spatial invariance</text>
+  <line x1="260" y1="823" x2="260" y2="837" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 12  y=840  Dense(128) + BN + ReLU6 ══ -->
+  <rect x="60" y="840" width="400" height="44" rx="5"
+        fill="#FCE7F3" stroke="#DB2777" stroke-width="1.5"/>
+  <text x="260" y="858" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#831843">Dense(128) + BN + ReLU6</text>
+  <text x="260" y="873" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">classification head</text>
+  <line x1="260" y1="885" x2="260" y2="899" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 13  y=902  Dropout ══ -->
+  <rect x="60" y="902" width="400" height="44" rx="5"
+        fill="#F3F4F6" stroke="#6B7280" stroke-width="1.5"/>
+  <text x="260" y="920" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#111827">Dropout (p = 0.05)</text>
+  <text x="260" y="935" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">regularisation (training only)</text>
+  <line x1="260" y1="947" x2="260" y2="961" stroke="#9CA3AF" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ══ ROW 14  y=964  Output ══ -->
+  <rect x="60" y="964" width="400" height="44" rx="5"
+        fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+  <text x="260" y="982" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="bold" fill="#78350F">Dense(12) + Softmax</text>
+  <text x="260" y="997" text-anchor="middle"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8.5" fill="#374151">12 Malaysian garden bird species</text>
+
+  <!-- ══ LEGEND ══ -->
+  <rect x="40" y="1022" width="440" height="44" rx="5"
+        fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+
+  <text x="55" y="1038"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" font-weight="bold" fill="#374151">Layer types:</text>
+
+  <rect x="122" y="1029" width="11" height="11" rx="2"
+        fill="#DBEAFE" stroke="#3B82F6" stroke-width="1.5"/>
+  <text x="138" y="1039"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">Input</text>
+
+  <rect x="168" y="1029" width="11" height="11" rx="2"
+        fill="#FED7AA" stroke="#EA580C" stroke-width="1.5"/>
+  <text x="184" y="1039"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">Conv2D (+BN)</text>
+
+  <rect x="258" y="1029" width="11" height="11" rx="2"
+        fill="#FFF7ED" stroke="#9A3412" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="274" y="1039"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">MBV3-SE Block</text>
+
+  <rect x="358" y="1029" width="11" height="11" rx="2"
+        fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="374" y="1039"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">MaxPool + Drop</text>
+
+  <text x="55" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">
+    <tspan fill="#059669">&#9632;</tspan>  GAP
+  </text>
+  <text x="90" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">  ·  </text>
+  <text x="100" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">
+    <tspan fill="#DB2777">&#9632;</tspan>  Dense
+  </text>
+  <text x="140" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">  ·  </text>
+  <text x="150" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">
+    <tspan fill="#6B7280">&#9632;</tspan>  Dropout
+  </text>
+  <text x="205" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">  ·  </text>
+  <text x="215" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#374151">
+    <tspan fill="#D97706">&#9632;</tspan>  Output
+  </text>
+  <text x="270" y="1057"
+        font-family="'Arial','Helvetica Neue',sans-serif"
+        font-size="8" fill="#6B7280">  SE = Squeeze-Excitation (hard-sigmoid, MCU-friendly)</text>
+
+</svg>

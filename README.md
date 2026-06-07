@@ -4,7 +4,7 @@ Lightweight CNN for bird call classification targeting deployment on **Arduino P
 
 ## Adopted Model: MynaNet = `1j` (MBV3-SE)
 
-![MynaNet architecture](deploy/mynanet_architecture.pdf)
+![MynaNet architecture](deploy/mynanet_architecture.svg)
 
 **`1j_mbv3_se.py`** is the production MynaNet model.
 
