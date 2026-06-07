@@ -14,14 +14,35 @@ pip install tensorflow tf_keras librosa numpy pandas scikit-learn
 
 ## 1. Download the dataset
 
-**mygardenbird16khz** — 12-class garden bird audio, 16 kHz, ~1,381 sources.
+**mygardenbird16khz** — 12-class garden bird audio, 16 kHz, ~1,381 sources.  
+Hosted on Zenodo at [doi.org/10.5281/zenodo.20306877](https://doi.org/10.5281/zenodo.20306877).  
+The audio archive is approximately 0.55 GB — ensure you have at least 1.5 GB free (compressed + extracted).
 
 ```bash
-# Clone the dataset repository
-git clone https://github.com/mun3im/mygardenbird
+# Option A: browser
+# Go to https://zenodo.org/records/20306877
+# Download mygardenbird16khz.zip (~0.55 GB) and mygardenbird_metadata.zip, then:
+unzip mygardenbird16khz.zip
+unzip mygardenbird_metadata.zip
+
+# Option B: wget
+wget -O mygardenbird16khz.zip \
+     https://zenodo.org/records/20306877/files/mygardenbird16khz.zip
+wget -O mygardenbird_metadata.zip \
+     https://zenodo.org/records/20306877/files/mygardenbird_metadata.zip
+unzip mygardenbird16khz.zip
+unzip mygardenbird_metadata.zip
+
+# Option C: curl
+curl -L -o mygardenbird16khz.zip \
+     https://zenodo.org/records/20306877/files/mygardenbird16khz.zip
+curl -L -o mygardenbird_metadata.zip \
+     https://zenodo.org/records/20306877/files/mygardenbird_metadata.zip
+unzip mygardenbird16khz.zip
+unzip mygardenbird_metadata.zip
 ```
 
-The expected layout after cloning:
+Expected layout after extraction:
 
 ```
 mygardenbird16khz/          ← flat directory of .wav files
@@ -75,8 +96,6 @@ INT8 conversion happens automatically at the end of training. The output file is
 ```
 results_mygardenbird_1_{platform}/.../model_int8.tflite
 ```
-
-INT8 conversion runs automatically at the end of training.
 
 ---
 
