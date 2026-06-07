@@ -15,7 +15,7 @@ Lightweight CNN for bird call classification targeting deployment on **Arduino P
 
 ## Dataset
 
-**mygardenbird16khz** — 12 garden bird species, 16 kHz  
+**[mygardenbird16khz](https://zenodo.org/records/20306877)** — 12 garden bird species, 16 kHz  
 Fixed 80:10:10 train/val/test split (CSV-based, no leakage)
 
 ## Repository layout
