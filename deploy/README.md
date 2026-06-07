@@ -12,6 +12,22 @@ pip install tensorflow tf_keras librosa numpy pandas scikit-learn
 
 ---
 
+## Pre-trained model
+
+`mynanet_int8.tflite` — canonical MynaNet, ready to flash without retraining.
+
+| File | Seed | FP32 % | INT8 % | Size |
+|------|------|--------|--------|------|
+| `mynanet_int8.tflite` | 100 | 95.14 | **95.42** | 267 KB |
+
+To skip training and go straight to firmware conversion:
+
+```bash
+bash convert_xxd.sh mynanet_int8.tflite src/mynanet_model_data g_mynanet_model_data
+```
+
+---
+
 ## 1. Download the dataset
 
 **mygardenbird16khz** — 12-class garden bird audio, 16 kHz, ~1,381 sources.  
