@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full ablation chain (1a–1g) on the 12-class MyGardenBird dataset.
+# Full ablation chain (1a–1n) on the 12-class MyGardenBird dataset.
 #
 # Identical hyperparameters for direct comparison:
 #   n_mels=64, dropout=0.05, warmup=70, mixup=0.2, split 80:10:10
@@ -8,7 +8,7 @@
 # Results land in: results_mygardenbird_1_{darwin|linux}/
 #
 # Usage:
-#   bash run_seabird12_ablation.sh          # all 21 runs (7 models × 3 seeds)
+#   bash run_seabird12_ablation.sh          # all runs
 #   bash run_seabird12_ablation.sh 1a       # only 1a (3 seeds)
 #   bash run_seabird12_ablation.sh 1b       # only 1b (3 seeds)
 #   bash run_seabird12_ablation.sh 1c       # only 1c (3 seeds)
@@ -16,8 +16,7 @@
 #   bash run_seabird12_ablation.sh 1e       # only 1e (3 seeds)
 #   bash run_seabird12_ablation.sh 1f       # only 1f (3 seeds)
 #   bash run_seabird12_ablation.sh 1g       # only 1g (3 seeds)
-#   bash run_seabird12_ablation.sh 1k       # only 1k (3 seeds) — needs CSV adaptation first
-#   bash run_seabird12_ablation.sh 1l       # only 1l (3 seeds) — DS-CNN no BN, 3 blocks
+#   bash run_seabird12_ablation.sh 1k       # only 1k (3 seeds)
 
 set -euo pipefail
 
@@ -152,37 +151,29 @@ fi
 
 if [[ "$FILTER" == "all" || "$FILTER" == "1l" ]]; then
     echo ""
-    echo "▶▶▶  1l: Depthwise Separable CNN (no BN, 3 blocks, ~80K params)"
+    echo "▶▶▶  1l: InvRes+HardSE+5×5DW+HSwish (1j + hard-swish in blocks 3-4, same size)"
     for seed in "${SEEDS[@]}"; do
-        run_one "1l_depthwise_cnn.py" "1l_depthwise_cnn" "$seed"
+        run_one "1l_mbv3_se_hs.py" "1l_mbv3_se_hs" "$seed"
     done
 fi
 
-if [[ "$FILTER" == "all" || "$FILTER" == "1p" ]]; then
+if [[ "$FILTER" == "all" || "$FILTER" == "1m" ]]; then
     echo ""
-    echo "▶▶▶  1p: MBV3-SE + Hard-Swish (1j + hard-swish in blocks 3-4, same size)"
+    echo "▶▶▶  1m: InvRes+OutSE (EfficientNet-style SE on output channels, se_ratio=0.25)"
     for seed in "${SEEDS[@]}"; do
-        run_one "1p_mbv3_se_hs.py" "1p_mbv3_se_hs" "$seed"
+        run_one "1m_efficientnet_se.py" "1m_efficientnet_se" "$seed"
     done
 fi
 
-if [[ "$FILTER" == "all" || "$FILTER" == "1q" ]]; then
+if [[ "$FILTER" == "all" || "$FILTER" == "1n" ]]; then
     echo ""
-    echo "▶▶▶  1q: EfficientNet-SE (1j + EfficientNet SE on output channels, se_ratio=0.25)"
-    for seed in "${SEEDS[@]}"; do
-        run_one "1q_efficientnet_se.py" "1q_efficientnet_se" "$seed"
-    done
-fi
-
-if [[ "$FILTER" == "all" || "$FILTER" == "1r" ]]; then
-    echo ""
-    echo "▶▶▶  1r: EfficientNetB0 pretrained (accuracy ceiling, NOT MCU-deployable)"
+    echo "▶▶▶  1n: EfficientNetB0 pretrained (accuracy ceiling, NOT MCU-deployable)"
     for seed in "${SEEDS[@]}"; do
         echo ""
         echo "════════════════════════════════════════════════════"
-        echo "  1r_efficientnetb0  seed=$seed"
+        echo "  1n_efficientnetb0  seed=$seed"
         echo "════════════════════════════════════════════════════"
-        conda run -n tf215_gpu python3 "$SCRIPT_DIR/1r_efficientnetb0.py" \
+        conda run -n tf215_gpu python3 "$SCRIPT_DIR/1n_efficientnetb0.py" \
             --splits_csv "$SPLITS_CSV" \
             --flat_dir   "$FLAT_DIR" \
             --n_mels 224 \

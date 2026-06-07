@@ -41,17 +41,44 @@ All scripts share the same protocol: `n_mels=64`, `dropout=0.05`, `warmup=70`, `
 > † 1r FP32 = 95.42% (dataset ceiling); INT8 drops 3.8 pp due to swish quantization  
 > BATCH_MATMUL (used by Keras MultiHeadAttention) is not in the TFLite Micro op set on Portenta H7
 
-## Training
+## Repository layout
+
+```
+deploy/          ← production: train MynaNet, convert to firmware C array
+  train.py           MynaNet (1j) training + INT8 quantization
+  convert_xxd.sh     TFLite → alignas(8) C array for Portenta H7 firmware
+  README.md          End-to-end guide: download → train → quantize → deploy
+
+develop/         ← ablation: all Series 1 model scripts + sweep runner
+  1a_baseline_2dcnn.py … 1n_efficientnetb0.py
+  run_seabird12_ablation.sh
+```
+
+## Quick start (deploy)
+
+See [`deploy/README.md`](deploy/README.md) for the full end-to-end guide.
+
+```bash
+# Train MynaNet on mygardenbird16khz
+python deploy/train.py \
+  --flat_dir /path/to/mygardenbird16khz \
+  --splits_csv /path/to/metadata16khz/splits_mip_80_10_10.csv
+
+# Convert trained INT8 TFLite → firmware C array
+bash deploy/convert_xxd.sh model_int8.tflite src/mynanet_model_data g_mynanet_model_data
+```
+
+## Ablation training
 
 ```bash
 # Train MynaNet (1j) — 3 seeds
-bash run_seabird12_ablation.sh 1j
+bash develop/run_seabird12_ablation.sh 1j
 
 # Train a specific model
-bash run_seabird12_ablation.sh 1e
+bash develop/run_seabird12_ablation.sh 1e
 
 # Train all Series 1 models
-bash run_seabird12_ablation.sh
+bash develop/run_seabird12_ablation.sh
 ```
 
 Results are written to `results_mygardenbird_1_{darwin|linux}/`.
