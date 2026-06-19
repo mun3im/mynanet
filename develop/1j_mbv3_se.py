@@ -344,6 +344,10 @@ def get_config():
         if header.startswith('# split_ratio='):
             ratio_str = header.split('split_ratio=')[1].split()[0]
             split_suffix = f"split{ratio_str}"
+        elif header.startswith('# loso'):
+            # LOSO fold CSV, e.g. "# loso k=5 fold=0 seed=42"
+            toks = dict(t.split('=') for t in header.replace('#', '').split() if '=' in t)
+            split_suffix = f"loso_k{toks.get('k', '?')}_fold{toks.get('fold', '?')}"
     except Exception:
         split_suffix = "splitcsv"
 
