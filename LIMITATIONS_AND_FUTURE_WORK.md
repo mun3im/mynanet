@@ -53,6 +53,39 @@ The MyGardenBird curation method's effectiveness depends on:
 - Report cross-partition source count on expanded split
 - Re-run LOSO on expanded dataset (proof that source-disjoint property holds)
 
+### Why LOSO Is Still Necessary Even With MIP Property
+
+**Key distinction:** MIP ensures **no source-level leakage**, but LOSO proves **model robustness**. They answer different questions:
+
+**MIP source-disjoint property guarantees:**
+- ✓ No individual recording source appears in multiple splits
+- ✓ Prevents leakage of recording-specific artifacts (equipment, technician bias, habitat)
+- ✗ Does NOT guarantee generalization to new (out-of-split) sources
+
+**LOSO cross-validation additionally validates:**
+- ✓ Model generalizes to held-out sources from same species (true OOD test)
+- ✓ Doesn't overfit to recording patterns within the training split
+- ✓ Simulates real deployment: at inference, new recordings from new Xeno-canto sources will appear
+- ✓ More stringent than random train/val/test split (tests source-level generalization, not just sample-level)
+
+**Example of why both matter:**
+- Imagine training set contains 50 different Xeno-canto sources for "Asian Koel"
+- MIP ensures test set has 0 overlap with those 50 sources ✓
+- **But model could still overfit to recording characteristics of those 50 sources** (e.g., specific equipment, recording location's ambient noise)
+- At inference: brand-new Xeno-canto source (51st source) → model sees unfamiliar patterns → accuracy degrades
+- LOSO catches this by holding out entire sources and testing on new sources from same species ✓
+
+**Result:**
+- Fixed-split 94.91% (MIP-validated no-leakage baseline)
+- LOSO 94.06% ±0.98 (true generalization, new-source simulation)
+- Gap of 0.85pp (within fold SD) → model generalizes well
+- **If gap were large (e.g., 3-5pp), would indicate source-specific overfitting despite MIP property**
+
+**For expanded dataset:**
+- MIP ensures new expansion doesn't reintroduce leakage
+- LOSO on expanded set proves generalization didn't degrade
+- If LOSO drops significantly (e.g., 93% or lower), investigate source bias in new collection
+
 ### Scenario: Domain Shift in New Data
 
 **Systematic differences in new collection:**
