@@ -74,7 +74,28 @@ Clean up sibling directories (`../tcn/` and `../mobilenet-inspired/`) by removin
 - **No impact on paper results:** All kept scripts correspond to experiments in CLAUDE.md
 - **Total active scripts:** 30 MynaNet-relevant training + benchmarking scripts
 
+### MynaNet-Benchmarking Directory (`../mynanet-benchmarking/`)
+
+**Moved to `./benchmarks/`: 12 scripts** (Tier-A/B peer benchmarking suite)
+- `5a_matchboxnet_3x2x64.py` — MatchBoxNet Tier-A
+- `5b_dscnn_l_helloedge.py` — DS-CNN-L Tier-A
+- `5c_bcresnet8.py` — BC-ResNet Tier-A
+- `5d_tcresnet14.py` — TC-ResNet Tier-A
+- `BENCHMARKING_PEERS.md` — peer documentation (Tier-A/B descriptions)
+- `run_peer_benchmarks.sh` — batch run script
+- `run_on_device_latency.sh` — latency measurement script
+
+**Kept: `results_mygardenbird_5_darwin/`** (12-class validation results)
+- 5a: 91.25% INT8 (165.7 KB) — complete macOS run
+- 5b: incomplete (warmup only)
+- **Status:** 12-class results confirmed; no retraining needed
+
+**Removed:** duplicate analysis scripts (already in benchmarks/)
+
+**Rationale:** All benchmarking content consolidated to `./benchmarks/`. Results directory retained as valuable 12-class validation data.
+
 ## Cross-Reference
 - TCN results: CLAUDE.md § "SERIES 2" (2a-2h ablations)
 - Mobilenet results: CLAUDE.md § "SERIES 3" (3a-3g MobileNetV3), benchmarks/README.md (4a-4i peers)
-- Benchmarking: benchmarks/README.md results table
+- Peer architectures (5a-5d): benchmarks/BENCHMARKING_PEERS.md + benchmarks/5a-5d scripts
+- Benchmarking suite: benchmarks/README.md results table + benchmarks/results_mygardenbird_5_darwin/
