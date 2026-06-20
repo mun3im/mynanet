@@ -1,6 +1,11 @@
 # MynaNet Benchmarking Scripts
 
-Transfer learning benchmarks comparing MynaNet (domain-specific) against pre-trained general-purpose audio models.
+Comprehensive benchmark suite comparing MynaNet (domain-specific, 267 KB) against:
+- **Transfer learning models**: YAMNet (AudioSet), MatchBoxNet (Google Speech Commands)
+- **Peer lightweight architectures**: SqueezeNet, ShuffleNetV2 (designed for edge deployment)
+- **Analysis tools**: Per-class accuracy, SNR sensitivity, statistical significance
+
+All benchmarks use the **12-class MyGardenBird dataset** (80:10:10 split, MIP source-disjoint).
 
 ## Datasets
 
@@ -106,6 +111,103 @@ python benchmarks/yamnet_debug.py
 
 **Output:** Tests different input shapes, confirms YAMNet expects raw audio waveforms (1D float32), not mel spectrograms.
 
+### Peer Architecture Benchmarks (Lightweight MCU-class models)
+
+Lightweight CNN architectures designed for edge deployment.
+
+#### `peer_architectures.py`
+
+**Purpose:** Unified benchmark framework for SqueezeNet, ShuffleNetV2, and other lightweight models
+
+**Supported architectures:**
+- **4a: SqueezeNet v1.1** (58K py) — depthwise-separable with Fire modules
+- **4b: ShuffleNetV2 v1.1** (50K py) — channel shuffling for efficiency
+- **4c: ShuffleNetV2 Compact** (50K py) — reduced width variant
+
+**Usage:**
+```bash
+python peer_architectures.py --model 4a --dataset mygardenbird --splits splits_mip_80_10_10.csv
+```
+
+**Output:**
+- Per-model accuracy, F1-score, model size
+- Comparison table vs MynaNet
+
+#### `4a_squeezenet_v11.py`, `4b_shufflenetv2_v11.py`, `4c_shufflenetv2_compact.py`
+
+**Purpose:** Individual training scripts for peer architectures on mygardenbird
+
+**Usage:**
+```bash
+python 4a_squeezenet_v11.py --random_seed 42
+python 4b_shufflenetv2_v11.py --random_seed 42
+python 4c_shufflenetv2_compact.py --random_seed 42
+```
+
+### Analysis Scripts
+
+#### `analyze_perclass_multiseed.py`
+
+**Purpose:** Per-class accuracy analysis across multiple seeds
+
+**Usage:**
+```bash
+python analyze_perclass_multiseed.py results_mygardenbird_4_linux/
+```
+
+**Output:** Per-species accuracy, variance, class-wise performance comparison
+
+#### `analyze_perclass_snr.py`
+
+**Purpose:** Analyze per-class accuracy as function of audio signal-to-noise ratio
+
+**Usage:**
+```bash
+python analyze_perclass_snr.py results_mygardenbird_4_linux/
+```
+
+**Output:** SNR impact on classification accuracy by species
+
+#### `analyze_significance.py`
+
+**Purpose:** Statistical significance testing (t-tests, confidence intervals)
+
+**Usage:**
+```bash
+python analyze_significance.py results_mygardenbird_4_linux/
+```
+
+**Output:** Significance results CSV with p-values, 95% CIs
+
+### Batch Run Scripts
+
+#### `run_peer_benchmarks.sh`
+
+**Purpose:** Execute all peer architecture benchmarks with fixed configuration
+
+**Usage:**
+```bash
+bash run_peer_benchmarks.sh
+```
+
+**Configuration (edit script):**
+```bash
+DATASET_DIR="/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"
+SPLITS_CSV="/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv"
+SEEDS=(42 100 786)  # 3-seed evaluation
+```
+
+#### `run_on_device_latency.sh`
+
+**Purpose:** Measure inference latency on target device (Portenta H7 or similar)
+
+**Usage:**
+```bash
+bash run_on_device_latency.sh mynanet_int8.tflite
+```
+
+**Output:** Latency statistics (mean, median, p95) in milliseconds
+
 ### MatchBoxNet Benchmarks
 
 MatchBoxNet is a depthwise-separable CNN trained on Google Speech Commands (1-second speech, 30 classes).
@@ -155,11 +257,24 @@ YAMNET_WINDOW_STARTS_S = [0.0, 0.51, 1.02, 1.53, 2.04]  # 5-window overlapping
 
 ## Results Summary
 
-| Model | Training | Duration | Approach | Accuracy | Gap vs MynaNet |
-|-------|----------|----------|----------|----------|---|
-| YAMNet | AudioSet | 3s | Transfer learning (embeddings + RF) | 65.97% | -28.94pp |
-| MatchBoxNet | GSC | 3s | Transfer learning (estimated) | ~80% | -14.9pp |
-| **MynaNet (1j)** | **MyGardenBird** | **3s** | **Domain-specific, INT8** | **94.91%** | **baseline** |
+### Transfer Learning vs Domain-Specific (Main Finding)
+
+| Model | Training | Approach | Accuracy | Model Size | Gap vs MynaNet |
+|-------|----------|----------|----------|---|---|
+| YAMNet | AudioSet | Transfer learning (embeddings + RF) | 65.97% | N/A | -28.94pp |
+| MatchBoxNet | GSC | Transfer learning (estimated) | ~80% | N/A | -14.9pp |
+| **MynaNet (1j)** | **MyGardenBird** | **Domain-specific, INT8** | **94.91%** | **267 KB** | **baseline** |
+
+### Peer Lightweight Architectures (MCU-class)
+
+| Model | Training | Accuracy (INT8) | Model Size | H7 Fit | Gap vs MynaNet |
+|-------|----------|---|---|---|---|
+| 4a SqueezeNet v1.1 | MyGardenBird | 91.81% | 809.5 KB | ✗ Over | -3.10pp |
+| 4c ShuffleNetV2 Compact | MyGardenBird | 90.14% | 476.3 KB | ✓ Fits | -4.77pp |
+| 4b ShuffleNetV2 v1.1 | MyGardenBird | 89.44% | 2299.2 KB | ✗ Way over | -5.47pp |
+| **1j MynaNet** | **MyGardenBird** | **94.91%** | **267 KB** | **✓ Fits** | **baseline** |
+
+**Key insight:** Among H7-deployable models (≤512 KB), MynaNet achieves the highest accuracy (94.91%) with the smallest footprint (267 KB), demonstrating optimal architecture design for the embedded bird classification task.
 
 **Key Finding:** Domain-specific architecture design significantly outperforms transfer learning from general-purpose audio models, even when those models achieve state-of-the-art performance on their native tasks (AudioSet, GSC).
 
