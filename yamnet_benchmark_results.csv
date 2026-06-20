@@ -1,0 +1,6 @@
+Model,Training Dataset,Audio Duration,Approach,Test Accuracy,Test F1,Notes
+YAMNet (5-window RF),MyGardenBird 12-class,3s,Transfer learning (AudioSet→birds),0.6597,0.6542,"Pre-trained embeddings + Random Forest, 5 overlapping windows"
+"MynaNet (1j, INT8)",MyGardenBird 12-class,3s,"Domain-specific, trained from scratch",0.9491,—,Deployed model
+,,,,,,
+Analysis,,,,,,
+Accuracy gap,,,,-28.94 pp,,MynaNet advantage over transfer

@@ -70,9 +70,9 @@ on Portenta H7. Only 1a–1e (no attention) produce compatible `.tflite` files.
 - **1n EffNetB0 FP32 95.42% = dataset ceiling** (+0.5 pp over 1j); our 267 KB 1j beats the 5 MB pretrained net after INT8.
 
 ---
-# ✅ SUBMISSION-READY (2026-06-19, last updated 2026-06-19 17:30)
+# ✅ SUBMISSION-READY (2026-06-20, last updated 2026-06-20 11:35)
 ---
-**All 8 reviewer items closed + ALL old dataset references removed + MatchBoxNet comparison added.** Paper (20 pages, 558 KB PDF) compiled successfully with:
+**All 8 reviewer items closed + ALL old dataset references removed + MatchBoxNet & YAMNet comparisons added.** Paper (21 pages, 560 KB PDF) compiled successfully with:
 - Abstract: updated to 12-class numbers (mixup +0.56pp, 2D vs 1D +1.99pp)
 - tab:training_ablation: now 12-class MyGardenBird (was historical 10-class); includes all 3 split ratios with results
 - tab:tcn_ablation: 12-class Series 2 results (2g best at 92.92% INT8)
@@ -84,6 +84,7 @@ on Portenta H7. Only 1a–1e (no attention) produce compatible `.tflite` files.
 - **No references to 10-class or "historical" dataset remain in paper**
 - All prose references (§2, §4, §6, §7) updated consistently to 12-class
 - **NEW: MatchBoxNet transfer learning comparison (§6.2)** — domain-shift analysis showing MynaNet +14.9 pp advantage over GSC→birds transfer (1s→3s mismatch)
+- **NEW: YAMNet transfer learning benchmark (§6.3)** — measured 65.97% vs MynaNet 94.91% (28.94 pp gap), validates domain-specific architecture over AudioSet transfer
 
 ---
 # 🔒 BEFORE SUBMISSION — AUTHOR ACTION REQUIRED (ARCHIVED)
