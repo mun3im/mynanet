@@ -1,0 +1,120 @@
+================================================================================
+MODEL ARCHITECTURE SUMMARY
+================================================================================
+
+Model: "Seabird_DSCNN"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input (InputLayer)          [(None, 80, 300, 1)]      0         
+                                                                 
+ initial_conv (Conv2D)       (None, 80, 300, 32)       288       
+                                                                 
+ initial_bn (BatchNormaliza  (None, 80, 300, 32)       128       
+ tion)                                                           
+                                                                 
+ initial_relu (ReLU)         (None, 80, 300, 32)       0         
+                                                                 
+ block1_depthwise (Depthwis  (None, 80, 300, 32)       288       
+ eConv2D)                                                        
+                                                                 
+ block1_depthwise_bn (Batch  (None, 80, 300, 32)       128       
+ Normalization)                                                  
+                                                                 
+ block1_depthwise_relu (ReL  (None, 80, 300, 32)       0         
+ U)                                                              
+                                                                 
+ block1_pointwise (Conv2D)   (None, 80, 300, 64)       2048      
+                                                                 
+ block1_pointwise_bn (Batch  (None, 80, 300, 64)       256       
+ Normalization)                                                  
+                                                                 
+ block1_pointwise_relu (ReL  (None, 80, 300, 64)       0         
+ U)                                                              
+                                                                 
+ pool1 (MaxPooling2D)        (None, 40, 150, 64)       0         
+                                                                 
+ drop1 (Dropout)             (None, 40, 150, 64)       0         
+                                                                 
+ block2_depthwise (Depthwis  (None, 40, 150, 64)       576       
+ eConv2D)                                                        
+                                                                 
+ block2_depthwise_bn (Batch  (None, 40, 150, 64)       256       
+ Normalization)                                                  
+                                                                 
+ block2_depthwise_relu (ReL  (None, 40, 150, 64)       0         
+ U)                                                              
+                                                                 
+ block2_pointwise (Conv2D)   (None, 40, 150, 128)      8192      
+                                                                 
+ block2_pointwise_bn (Batch  (None, 40, 150, 128)      512       
+ Normalization)                                                  
+                                                                 
+ block2_pointwise_relu (ReL  (None, 40, 150, 128)      0         
+ U)                                                              
+                                                                 
+ pool2 (MaxPooling2D)        (None, 20, 75, 128)       0         
+                                                                 
+ drop2 (Dropout)             (None, 20, 75, 128)       0         
+                                                                 
+ block3_depthwise (Depthwis  (None, 20, 75, 128)       1152      
+ eConv2D)                                                        
+                                                                 
+ block3_depthwise_bn (Batch  (None, 20, 75, 128)       512       
+ Normalization)                                                  
+                                                                 
+ block3_depthwise_relu (ReL  (None, 20, 75, 128)       0         
+ U)                                                              
+                                                                 
+ block3_pointwise (Conv2D)   (None, 20, 75, 256)       32768     
+                                                                 
+ block3_pointwise_bn (Batch  (None, 20, 75, 256)       1024      
+ Normalization)                                                  
+                                                                 
+ block3_pointwise_relu (ReL  (None, 20, 75, 256)       0         
+ U)                                                              
+                                                                 
+ pool3 (MaxPooling2D)        (None, 10, 37, 256)       0         
+                                                                 
+ drop3 (Dropout)             (None, 10, 37, 256)       0         
+                                                                 
+ block4_depthwise (Depthwis  (None, 10, 37, 256)       2304      
+ eConv2D)                                                        
+                                                                 
+ block4_depthwise_bn (Batch  (None, 10, 37, 256)       1024      
+ Normalization)                                                  
+                                                                 
+ block4_depthwise_relu (ReL  (None, 10, 37, 256)       0         
+ U)                                                              
+                                                                 
+ block4_pointwise (Conv2D)   (None, 10, 37, 512)       131072    
+                                                                 
+ block4_pointwise_bn (Batch  (None, 10, 37, 512)       2048      
+ Normalization)                                                  
+                                                                 
+ block4_pointwise_relu (ReL  (None, 10, 37, 512)       0         
+ U)                                                              
+                                                                 
+ pool4 (MaxPooling2D)        (None, 5, 18, 512)        0         
+                                                                 
+ drop4 (Dropout)             (None, 5, 18, 512)        0         
+                                                                 
+ global_pool (GlobalAverage  (None, 512)               0         
+ Pooling2D)                                                      
+                                                                 
+ fc1 (Dense)                 (None, 128)               65664     
+                                                                 
+ fc1_bn (BatchNormalization  (None, 128)               512       
+ )                                                               
+                                                                 
+ fc1_relu (ReLU)             (None, 128)               0         
+                                                                 
+ fc_drop (Dropout)           (None, 128)               0         
+                                                                 
+ output (Dense)              (None, 12)                1548      
+                                                                 
+=================================================================
+Total params: 252300 (985.55 KB)
+Trainable params: 249100 (973.05 KB)
+Non-trainable params: 3200 (12.50 KB)
+_________________________________________________________________

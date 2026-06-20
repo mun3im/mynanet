@@ -1,0 +1,32 @@
+================================================================================
+MODEL ARCHITECTURE SUMMARY
+================================================================================
+
+Model: "MobileNetV3Small_w0.5"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input (InputLayer)          [(None, 64, 300, 1)]      0         
+                                                                 
+ channel_replicate (Lambda)  (None, 64, 300, 3)        0         
+                                                                 
+ MobilenetV3small (Function  (None, 2, 10, 288)        278784    
+ al)                                                             
+                                                                 
+ global_pool (GlobalAverage  (None, 288)               0         
+ Pooling2D)                                                      
+                                                                 
+ fc1 (Dense)                 (None, 128)               36992     
+                                                                 
+ fc1_bn (BatchNormalization  (None, 128)               512       
+ )                                                               
+                                                                 
+ fc_drop (Dropout)           (None, 128)               0         
+                                                                 
+ output (Dense)              (None, 12)                1548      
+                                                                 
+=================================================================
+Total params: 317836 (1.21 MB)
+Trainable params: 311084 (1.19 MB)
+Non-trainable params: 6752 (26.38 KB)
+_________________________________________________________________

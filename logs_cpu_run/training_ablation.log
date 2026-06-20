@@ -1,0 +1,11 @@
+
+▶▶▶ cell=mixup_80 (seeds: 42 100 786)
+  ↷ SKIP mixup_80 seed=42 (already exists: 1j_mbv3_se_mels64_drop05_rand42_warm70_mixup0.2_split80:10:10_linux)
+  ↷ SKIP mixup_80 seed=100 (already exists: 1j_mbv3_se_mels64_drop05_rand100_warm70_mixup0.2_split80:10:10_linux)
+  ↷ SKIP mixup_80 seed=786 (already exists: 1j_mbv3_se_mels64_drop05_rand786_warm70_mixup0.2_split80:10:10_linux)
+
+▶▶▶ cell=mixup_75 (seeds: 42 100 786)
+
+════════════════════════════════════════════════════
+  1j ablation cell=mixup_75  seed=42  split=75:10:15  aug=mixup0.2
+════════════════════════════════════════════════════

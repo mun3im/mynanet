@@ -1,0 +1,69 @@
+\relax 
+\citation{howard2019searching}
+\citation{zhang2017hello}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{}\protected@file@percent }
+\newlabel{sec:introduction}{{I}{1}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-A}}Phase 1: Computer Vision Baselines}{1}{}\protected@file@percent }
+\newlabel{sec:phase1}{{\mbox  {I-A}}{1}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-A}1}Initial Exploration: MobileNetV3-Small}{1}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces MobileNetV3-Small Baseline Results (80$\times $300 input)}}{1}{}\protected@file@percent }
+\newlabel{tab:mobilenet_baseline}{{I}{1}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-A}2}Limitations of Vision-Centric Architectures}{1}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-B}}Phase 2: Audio-Focused Adaptations}{1}{}\protected@file@percent }
+\newlabel{sec:phase2}{{\mbox  {I-B}}{1}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-B}1}Depthwise-Separable CNN (DS-CNN)}{1}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces DS-CNN Architecture Evolution (80$\times $300 input, 80:10:10 split)}}{1}{}\protected@file@percent }
+\newlabel{tab:dscnn_evolution}{{II}{1}{}{}{}}
+\citation{hu2018squeeze}
+\citation{bai2018empirical}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-B}2}Production Optimization: v0 $\to $ v1}{2}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces MynaNet Production Variants (80:10:10 split, Mixup 0.2)}}{2}{}\protected@file@percent }
+\newlabel{tab:production_variants}{{III}{2}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-B}3}Why DS-CNN Outperforms MobileNetV3}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-C}}Phase 3: Temporal Convolutional Networks (TCN)}{2}{}\protected@file@percent }
+\newlabel{sec:phase3}{{\mbox  {I-C}}{2}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-C}1}TCN Architecture Principles}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-C}2}Systematic TCN Ablation Study}{2}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces TCN Ablation Study (64$\times $300 input, Mixup $\alpha =0.2$)}}{2}{}\protected@file@percent }
+\newlabel{tab:tcn_ablation}{{IV}{2}{}{}{}}
+\citation{zhang2017mixup}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-C}3}Why TCN Falls Short}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-D}}Phase 4: Final Architecture Design}{3}{}\protected@file@percent }
+\newlabel{sec:phase4}{{\mbox  {I-D}}{3}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-D}1}Synthesis: MynaNet v1 Production Architecture}{3}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces MynaNet v1 production architecture: 328K parameters, 434~KB INT8, 95.00\% mean accuracy (3-seed Linux)}}{3}{}\protected@file@percent }
+\newlabel{fig:model1e}{{1}{3}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {I-D}2}Training Strategy}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-E}}Reproducibility: Authoritative Linux Evaluation}{4}{}\protected@file@percent }
+\newlabel{sec:reproducibility}{{\mbox  {I-E}}{4}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Multiseed Reproducibility (Linux, 80:10:10 split, INT8 accuracy)}}{4}{}\protected@file@percent }
+\newlabel{tab:multiseed}{{V}{4}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-F}}Comparative Analysis}{4}{}\protected@file@percent }
+\newlabel{sec:comparison}{{\mbox  {I-F}}{4}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Architecture Evolution Summary (64$\times $300 input unless noted)}}{4}{}\protected@file@percent }
+\newlabel{tab:final_comparison}{{VI}{4}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-G}}Deployment Characteristics}{4}{}\protected@file@percent }
+\newlabel{sec:deployment}{{\mbox  {I-G}}{4}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {VII}{\ignorespaces Deployment Profile (MynaNet v1)}}{4}{}\protected@file@percent }
+\newlabel{tab:deployment}{{VII}{4}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-H}}Ablation Study: Training Hyperparameters}{4}{}\protected@file@percent }
+\newlabel{sec:ablation_training}{{\mbox  {I-H}}{4}{}{}{}}
+\citation{zeghidour2018learning}
+\@writefile{lot}{\contentsline {table}{\numberline {VIII}{\ignorespaces Training Hyperparameter Ablation (MynaNet v1, 80 mels, 80:10:10 split)}}{5}{}\protected@file@percent }
+\newlabel{tab:training_ablation}{{VIII}{5}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-I}}Discussion: Lessons Learned}{5}{}\protected@file@percent }
+\newlabel{sec:lessons}{{\mbox  {I-I}}{5}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {I-J}}Future Directions}{5}{}\protected@file@percent }
+\newlabel{sec:future}{{\mbox  {I-J}}{5}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {II}Conclusion}{5}{}\protected@file@percent }
+\newlabel{sec:conclusion}{{II}{5}{}{}{}}
+\bibstyle{IEEEtran}
+\bibdata{references}
+\bibcite{howard2019searching}{1}
+\bibcite{zhang2017hello}{2}
+\bibcite{hu2018squeeze}{3}
+\bibcite{bai2018empirical}{4}
+\bibcite{zhang2017mixup}{5}
+\bibcite{zeghidour2018learning}{6}
+\@writefile{toc}{\contentsline {section}{References}{6}{}\protected@file@percent }
+\gdef \@abspage@last{6}

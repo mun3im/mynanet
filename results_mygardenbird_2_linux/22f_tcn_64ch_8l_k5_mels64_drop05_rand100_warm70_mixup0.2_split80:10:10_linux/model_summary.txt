@@ -1,0 +1,201 @@
+================================================================================
+MODEL ARCHITECTURE SUMMARY
+================================================================================
+
+Model: "TCN_2"
+__________________________________________________________________________________________________
+ Layer (type)                Output Shape                 Param #   Connected to                  
+==================================================================================================
+ input (InputLayer)          [(None, 64, 300, 1)]         0         []                            
+                                                                                                  
+ reshape (Reshape)           (None, 64, 300)              0         ['input[0][0]']               
+                                                                                                  
+ permute (Permute)           (None, 300, 64)              0         ['reshape[0][0]']             
+                                                                                                  
+ input_proj (Conv1D)         (None, 300, 64)              4096      ['permute[0][0]']             
+                                                                                                  
+ input_proj_bn (BatchNormal  (None, 300, 64)              256       ['input_proj[0][0]']          
+ ization)                                                                                         
+                                                                                                  
+ input_proj_relu (ReLU)      (None, 300, 64)              0         ['input_proj_bn[0][0]']       
+                                                                                                  
+ tcn_block1_conv1 (Conv1D)   (None, 300, 64)              20480     ['input_proj_relu[0][0]']     
+                                                                                                  
+ tcn_block1_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block1_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block1_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block1_bn1[0][0]']      
+                                                                                                  
+ tcn_block1_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block1_relu1[0][0]']    
+                                                                                                  
+ tcn_block1_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block1_drop1[0][0]']    
+                                                                                                  
+ tcn_block1_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block1_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block1_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block1_bn2[0][0]']      
+                                                                                                  
+ tcn_block1_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block1_relu2[0][0]']    
+                                                                                                  
+ tcn_block1_residual (Add)   (None, 300, 64)              0         ['tcn_block1_drop2[0][0]',    
+                                                                     'input_proj_relu[0][0]']     
+                                                                                                  
+ tcn_block2_conv1 (Conv1D)   (None, 300, 64)              20480     ['tcn_block1_residual[0][0]'] 
+                                                                                                  
+ tcn_block2_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block2_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block2_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block2_bn1[0][0]']      
+                                                                                                  
+ tcn_block2_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block2_relu1[0][0]']    
+                                                                                                  
+ tcn_block2_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block2_drop1[0][0]']    
+                                                                                                  
+ tcn_block2_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block2_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block2_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block2_bn2[0][0]']      
+                                                                                                  
+ tcn_block2_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block2_relu2[0][0]']    
+                                                                                                  
+ tcn_block2_residual (Add)   (None, 300, 64)              0         ['tcn_block2_drop2[0][0]',    
+                                                                     'tcn_block1_residual[0][0]'] 
+                                                                                                  
+ tcn_block3_conv1 (Conv1D)   (None, 300, 64)              20480     ['tcn_block2_residual[0][0]'] 
+                                                                                                  
+ tcn_block3_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block3_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block3_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block3_bn1[0][0]']      
+                                                                                                  
+ tcn_block3_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block3_relu1[0][0]']    
+                                                                                                  
+ tcn_block3_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block3_drop1[0][0]']    
+                                                                                                  
+ tcn_block3_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block3_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block3_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block3_bn2[0][0]']      
+                                                                                                  
+ tcn_block3_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block3_relu2[0][0]']    
+                                                                                                  
+ tcn_block3_residual (Add)   (None, 300, 64)              0         ['tcn_block3_drop2[0][0]',    
+                                                                     'tcn_block2_residual[0][0]'] 
+                                                                                                  
+ tcn_block4_conv1 (Conv1D)   (None, 300, 64)              20480     ['tcn_block3_residual[0][0]'] 
+                                                                                                  
+ tcn_block4_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block4_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block4_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block4_bn1[0][0]']      
+                                                                                                  
+ tcn_block4_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block4_relu1[0][0]']    
+                                                                                                  
+ tcn_block4_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block4_drop1[0][0]']    
+                                                                                                  
+ tcn_block4_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block4_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block4_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block4_bn2[0][0]']      
+                                                                                                  
+ tcn_block4_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block4_relu2[0][0]']    
+                                                                                                  
+ tcn_block4_residual (Add)   (None, 300, 64)              0         ['tcn_block4_drop2[0][0]',    
+                                                                     'tcn_block3_residual[0][0]'] 
+                                                                                                  
+ tcn_block5_conv1 (Conv1D)   (None, 300, 64)              20480     ['tcn_block4_residual[0][0]'] 
+                                                                                                  
+ tcn_block5_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block5_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block5_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block5_bn1[0][0]']      
+                                                                                                  
+ tcn_block5_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block5_relu1[0][0]']    
+                                                                                                  
+ tcn_block5_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block5_drop1[0][0]']    
+                                                                                                  
+ tcn_block5_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block5_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block5_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block5_bn2[0][0]']      
+                                                                                                  
+ tcn_block5_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block5_relu2[0][0]']    
+                                                                                                  
+ tcn_block5_residual (Add)   (None, 300, 64)              0         ['tcn_block5_drop2[0][0]',    
+                                                                     'tcn_block4_residual[0][0]'] 
+                                                                                                  
+ tcn_block6_conv1 (Conv1D)   (None, 300, 64)              20480     ['tcn_block5_residual[0][0]'] 
+                                                                                                  
+ tcn_block6_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block6_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block6_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block6_bn1[0][0]']      
+                                                                                                  
+ tcn_block6_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block6_relu1[0][0]']    
+                                                                                                  
+ tcn_block6_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block6_drop1[0][0]']    
+                                                                                                  
+ tcn_block6_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block6_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block6_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block6_bn2[0][0]']      
+                                                                                                  
+ tcn_block6_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block6_relu2[0][0]']    
+                                                                                                  
+ tcn_block6_residual (Add)   (None, 300, 64)              0         ['tcn_block6_drop2[0][0]',    
+                                                                     'tcn_block5_residual[0][0]'] 
+                                                                                                  
+ tcn_block7_conv1 (Conv1D)   (None, 300, 64)              20480     ['tcn_block6_residual[0][0]'] 
+                                                                                                  
+ tcn_block7_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block7_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block7_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block7_bn1[0][0]']      
+                                                                                                  
+ tcn_block7_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block7_relu1[0][0]']    
+                                                                                                  
+ tcn_block7_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block7_drop1[0][0]']    
+                                                                                                  
+ tcn_block7_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block7_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block7_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block7_bn2[0][0]']      
+                                                                                                  
+ tcn_block7_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block7_relu2[0][0]']    
+                                                                                                  
+ tcn_block7_residual (Add)   (None, 300, 64)              0         ['tcn_block7_drop2[0][0]',    
+                                                                     'tcn_block6_residual[0][0]'] 
+                                                                                                  
+ tcn_block8_conv1 (Conv1D)   (None, 300, 64)              20480     ['tcn_block7_residual[0][0]'] 
+                                                                                                  
+ tcn_block8_bn1 (BatchNorma  (None, 300, 64)              256       ['tcn_block8_conv1[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block8_relu1 (ReLU)     (None, 300, 64)              0         ['tcn_block8_bn1[0][0]']      
+                                                                                                  
+ tcn_block8_drop1 (Dropout)  (None, 300, 64)              0         ['tcn_block8_relu1[0][0]']    
+                                                                                                  
+ tcn_block8_conv2 (Conv1D)   (None, 300, 64)              20480     ['tcn_block8_drop1[0][0]']    
+                                                                                                  
+ tcn_block8_bn2 (BatchNorma  (None, 300, 64)              256       ['tcn_block8_conv2[0][0]']    
+ lization)                                                                                        
+                                                                                                  
+ tcn_block8_relu2 (ReLU)     (None, 300, 64)              0         ['tcn_block8_bn2[0][0]']      
+                                                                                                  
+ tcn_block8_drop2 (Dropout)  (None, 300, 64)              0         ['tcn_block8_relu2[0][0]']    
+                                                                                                  
+ tcn_block8_residual (Add)   (None, 300, 64)              0         ['tcn_block8_drop2[0][0]',    
+                                                                     'tcn_block7_residual[0][0]'] 
+                                                                                                  
+ global_pool (GlobalAverage  (None, 64)                   0         ['tcn_block8_residual[0][0]'] 
+ Pooling1D)                                                                                       
+                                                                                                  
+ head_drop (Dropout)         (None, 64)                   0         ['global_pool[0][0]']         
+                                                                                                  
+ output (Dense)              (None, 12)                   780       ['head_drop[0][0]']           
+                                                                                                  
+==================================================================================================
+Total params: 336908 (1.29 MB)
+Trainable params: 334732 (1.28 MB)
+Non-trainable params: 2176 (8.50 KB)
+__________________________________________________________________________________________________

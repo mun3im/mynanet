@@ -33,9 +33,7 @@ Clean up sibling directories (`../tcn/` and `../mobilenet-inspired/`) by removin
 
 ### Mobilenet-Inspired Directory (`../mobilenet-inspired/`)
 
-**Kept: 15 scripts**
-
-*Series 3: MobileNetV3 Variants (7 scripts)*
+**Kept in development directory: 7 scripts** (Series 3 — actual development lineage)
 - `3a_mobilenetv3_pretrained_224x224.py` — ImageNet pretrained (transfer baseline)
 - `3b_mobilenetv3_64x300.py` — native 64×300 input
 - `3c_mobilenetv3_48x300.py` — 48-mel variant
@@ -44,13 +42,11 @@ Clean up sibling directories (`../tcn/` and `../mobilenet-inspired/`) by removin
 - `3f_mobilenetv3_width075_48x300.py` — width×0.75 at 48-mel
 - `3g_mobilenetv3_optimized.py` — optimized variant
 
-*Transformer (1 script)*
-- `3a_transformer_encoder.py` — pure Transformer baseline (for comparison)
-
-*Peer Architectures Series 4 (7 scripts)*
-- `4a_squeezenet_v11.py` — SqueezeNet v1.1 (benchmarking)
-- `4b_shufflenetv2_v11.py` — ShuffleNetV2 v1.1 (benchmarking)
-- `4c_shufflenetv2_compact.py` — ShuffleNetV2 Compact (benchmarking)
+**Moved to `./benchmarks/`: 8 scripts** (peer architectures for comparison)
+- `3a_transformer_encoder.py` — pure Transformer baseline
+- `4a_squeezenet_v11.py` — SqueezeNet v1.1
+- `4b_shufflenetv2_v11.py` — ShuffleNetV2 v1.1
+- `4c_shufflenetv2_compact.py` — ShuffleNetV2 Compact
 - `4f_matchboxnet_64x300.py` — MatchBoxNet variant A
 - `4g_matchboxnet_regularized_64x300.py` — MatchBoxNet variant B
 - `4h_matchboxnet_wider_64x300.py` — MatchBoxNet variant C
@@ -63,15 +59,20 @@ Clean up sibling directories (`../tcn/` and `../mobilenet-inspired/`) by removin
 - `3k_mobilenetv1_width035.py` — deprecated MobileNetV1
 - `3l_mobilenetv2_narrow_64x300.py` — deprecated MobileNetV2
 
-**Rationale:** Keep all models actively referenced in CLAUDE.md and `benchmarks/README.md`. Remove older MobileNetV1 variants that predate the MynaNet paper and were superseded by MobileNetV3. Keep all peer architectures (4a-4c, 4f-4i) for comprehensive benchmarking suite.
+**Rationale:** Series 3 (3a-3g) represents the actual development path explored during MynaNet research. Peer architectures (Series 4 + Transformers) are purely for benchmarking/comparison and belong in `./benchmarks/` for a cohesive validation suite.
 
 ## Impact
 
-- **Total removed:** 20 archival/experimental scripts
-- **Total kept:** 23 MynaNet-relevant training scripts
-- **Directory sizes reduced** by ~1.3 MB
-- **No impact on paper results:** All kept scripts correspond to experiments in CLAUDE.md and paper
-- **Benchmarking fully preserved:** All peer architectures maintained for `benchmarks/` suite
+- **Removed:** 20 archival/experimental scripts (~1.3 MB)
+- **Reorganized:** 8 peer architecture scripts moved to `./benchmarks/` for cohesion
+- **Development lineage preserved:** Series 3 (3a-3g) remains in `../mobilenet-inspired/`
+- **Benchmarking suite complete:** All peer models (4a-4i) + Transformers now in `./benchmarks/`
+- **Directory structure clarified:**
+  - `../mobilenet-inspired/` = development path (Series 3 MobileNetV3 evolution)
+  - `../tcn/` = development path (Series 2 TCN ablations)
+  - `./benchmarks/` = validation/comparison (YAMNet, MatchBoxNet, peers, analysis)
+- **No impact on paper results:** All kept scripts correspond to experiments in CLAUDE.md
+- **Total active scripts:** 30 MynaNet-relevant training + benchmarking scripts
 
 ## Cross-Reference
 - TCN results: CLAUDE.md § "SERIES 2" (2a-2h ablations)

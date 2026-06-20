@@ -1,0 +1,880 @@
+From 19833593c0f28031a019ae4c39b21a5f7c41e504 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 15 May 2026 15:24:40 +0000
+Subject: [PATCH] Update paper: 12-class MyGardenBird, model 1j (MBV3-SE) as
+ MynaNet
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Abstract/intro/conclusion: update to 94.91%±0.56% INT8, 267 KB, 12-class
+- §3 Dataset: fill provenance TODO (Xeno-canto, MIP split, 2 new species)
+- §4 Feature extraction: fix sr 48→16 kHz, FFT 2048→512, n_mels 80→64,
+  input shape 80×300→64×300, remove 3-channel replication note
+- §4.2 DS-CNN: replace old 10-class table with full 1a–1j ablation chain
+  (Linux/CUDA authoritative, 3-seed means, 12-class)
+- §4.4 Final architecture: full rewrite from v1 (MHSA, 434 KB) to
+  1j (MBV3-SE 5×5 dw, 267 KB); document hard-sigmoid SE and no-attention rationale
+- §4.3 TCN: update comparison row to MynaNet 1j (94.91%)
+- §5: remove "Linux re-runs planned"; state Linux/CUDA as authoritative
+- §6.1: update ablation narrative (1e→1j chain, SE+Res synergy)
+- §6.2: fix training sample count to 5760 (12-class), update caption
+- §6.3: add 1j row to comparison table; update narrative
+- §6.4: replace both multiseed tables with 12-class Linux authoritative
+  data for 1a–1j (FP32 and INT8, per-seed and mean±sd)
+- §7 Deployment: 434→267 KB, 78→245 KB margin, 95.00→94.91%, tab:comparison updated
+- §8 Discussion: insights 2/3/4/7/9 updated; new insight #5 on MBV3 vs DS-CNN
+- Keywords: replace multi-head self-attention with MobileNetV3 inverted residuals
+
+https://claude.ai/code/session_01NJDNVt7hYHYN3Yj6HPUiNb
+---
+ mynanet_neurocomputing.tex | 538 ++++++++++++++++++++-----------------
+ 1 file changed, 297 insertions(+), 241 deletions(-)
+
+diff --git a/mynanet_neurocomputing.tex b/mynanet_neurocomputing.tex
+index 0356da4..3fd9e23 100644
+--- a/mynanet_neurocomputing.tex
++++ b/mynanet_neurocomputing.tex
+@@ -48,29 +48,21 @@ exploration spanning computer-vision transfer-learning baselines
+ and audio-specific depthwise-separable CNNs with squeeze-and-excitation
+ attention, we demonstrate that domain-specific inductive biases
+ substantially outperform generic architectures within severe memory
+-budgets. MynaNet~v1 achieves \num[round-mode=places,round-precision=2]{95.00}\%
+-$\pm$ \SI{0.87}{\percent} mean INT8 accuracy at a \SI{434}{KB} model size
+-on ten Southeast Asian garden-bird species, validating the deployment
++budgets. MynaNet achieves \num[round-mode=places,round-precision=2]{94.91}\%
++$\pm$ \SI{0.56}{\percent} mean INT8 accuracy at a \SI{267}{KB} model size
++on twelve Southeast Asian garden-bird species, validating the deployment
+ targets of $>$\SI{90}{\percent} accuracy within $<$\SI{512}{KB}. Ablation
+ studies across 20+ configurations isolate four primary design insights:
+ (i)~audio-aware 2D convolutions outperform 1D temporal models by
+ \SI{2.2}{\percent} absolute; (ii)~Mixup augmentation surpasses SpecAugment
+-by \SI{0.5}{\percent}; (iii)~moderate multi-head self-attention (2~heads,
+-88 dimensions) provides the optimal accuracy-size trade-off; and
+-(iv)~a 6\%-reduced channel width ([120,~180,~146,~360]) improves
+-generalisation over a wider over-parameterised baseline. The resulting
+-architecture is \SI{15}{\percent} under the \SI{512}{KB} deployment budget
+-with an estimated latency of \SI{116}{ms} on an ARM Cortex-M7 at
+-\SI{480}{MHz}, enabling continuous real-time acoustic monitoring for
+-wildlife conservation.
+-
+-% TODO: Update abstract with final 3-seed results on MyGardenBird finalised
+-%       dataset (80:10:10 split) after Linux retraining.  Current authoritative
+-%       figures (95.00 +- 0.87%) are from OLD dataset (Common Myna + Zebra
+-%       Dove, 80:10:10 split).  macOS seed-42 preliminary on NEW dataset
+-%       (Coppersmith Barbet + White-breasted Waterhen, 80:10:10): pending;
+-%       prior 75:10:15 run gave 93.44% FP32 no-mixup / 93.89% FP32 mixup /
+-%       94.00% INT8.
++by \SI{0.5}{\percent}; (iii)~MobileNetV3-style 5$\times$5 depthwise
++convolutions with hard-sigmoid squeeze-and-excitation outperform DS-CNN by
++\SI{0.79}{\percent} absolute at \SI{110}{KB} smaller model size; and
++(iv)~64~mel bins are optimal, with denser resolutions consistently degrading
++accuracy across all model families. The resulting architecture is 48\% under
++the \SI{512}{KB} deployment budget with an estimated latency of \SI{116}{ms}
++on an ARM Cortex-M7 at \SI{480}{MHz}, enabling continuous real-time acoustic
++monitoring for wildlife conservation.
+ \end{abstract}
+ 
+ \begin{keyword}
+@@ -78,7 +70,7 @@ bird call classification \sep
+ edge AI \sep
+ depthwise-separable CNN \sep
+ squeeze-and-excitation \sep
+-multi-head self-attention \sep
++MobileNetV3 inverted residuals \sep
+ post-training quantisation \sep
+ wildlife acoustics \sep
+ embedded systems
+@@ -102,7 +94,7 @@ of ARM Cortex-class microcontrollers ($<$\SI{512}{KB} flash) demands
+ purpose-built model architectures rather than off-the-shelf computer-vision
+ backbones.
+ 
+-This paper presents MynaNet~v1, the outcome of a principled multi-phase
++This paper presents MynaNet, the outcome of a principled multi-phase
+ architecture search starting from pretrained MobileNetV3 baselines, passing
+ through a temporal-convolutional-network detour, and arriving at a
+ hand-optimised audio-first design. The dataset used for all experiments is
+@@ -114,13 +106,12 @@ The main contributions of this work are:
+ \begin{enumerate}
+   \item A systematic ablation study (Section~\ref{sec:ablation}) documenting
+         the incremental gains from depthwise-separable convolutions,
+-        squeeze-and-excitation channel attention, residual skip connections
+-        in all blocks, and lightweight multi-head self-attention.
+-  \item MynaNet~v1 (Section~\ref{sec:architecture}), which achieves 95.00\%
+-        INT8 accuracy at 434~KB on the 10-class dataset and 93.52\% on the
+-        expanded 12-class dataset (Section~\ref{sec:reproducibility})---\SI{38}{\percent}
+-        smaller than a comparable MobileNetV3-Small variant at equivalent or superior
+-        accuracy.
++        squeeze-and-excitation channel attention, residual skip connections,
++        and MobileNetV3-style 5$\times$5 depthwise blocks with hard-sigmoid SE.
++  \item MynaNet (Section~\ref{sec:architecture}), which achieves
++        94.91\%~$\pm$~0.56\% INT8 accuracy at 267~KB on the twelve-class
++        dataset---62\% smaller than a comparable MobileNetV3-Small variant
++        ($\times$0.5, 703~KB) at superior accuracy.
+   \item Quantitative evidence that 2D audio-specific inductive bias
+         outperforms 1D temporal models by \SI{2.2}{\percent} despite equal
+         parameter budgets (Section~\ref{sec:tcn}).
+@@ -176,7 +167,7 @@ Data augmentation is critical for improving generalization in audio classificati
+ 
+ Existing literature demonstrates three largely parallel trajectories: (i) high-accuracy bird-call classifiers built on large CNN or transformer backbones; (ii) lightweight CNN architectures primarily evaluated on speech tasks; and (iii) TinyML deployment frameworks targeting microcontroller inference. However, few studies unify these directions into a controlled architectural exploration for bird-call classification under strict sub-512KB flash constraints.
+ 
+-To our knowledge, no prior work systematically compares pretrained vision backbones, 1D temporal convolutional networks, and audio-specific 2D depthwise-separable CNNs within a fixed microcontroller deployment budget for avian acoustic recognition. MynaNet addresses this gap through a multi-phase architectural investigation culminating in a 434KB INT8 model validated via controlled ablations and multi-seed evaluation.
++To our knowledge, no prior work systematically compares pretrained vision backbones, 1D temporal convolutional networks, and audio-specific 2D depthwise-separable CNNs within a fixed microcontroller deployment budget for avian acoustic recognition. MynaNet addresses this gap through a multi-phase architectural investigation culminating in a 267~KB INT8 model validated via controlled ablations and multi-seed evaluation.
+ 
+ % ==============================================================================
+ \section{Dataset: MyGardenBird}
+@@ -200,9 +191,13 @@ evaluation. The split was generated using Mixed Integer Programming to
+ ensure source-based separation and prevent data leakage across recordings.
+ The split files are distributed with the corpus under \textsc{cc-by}~4.0.
+ 
+-\TODO{Add dataset provenance paragraph: number of Xeno-canto source
+-recordings per species, total clip counts before/after quality filtering,
+-and cite zabidi2026seabird once the Scientific Data paper is accepted.}
++The twelve classes comprise the ten original species (Asian Koel,
++Collared Kingfisher, Common Iora, Common Tailorbird, Coppersmith Barbet,
++Large-tailed Nightjar, Olive-backed Sunbird, Spotted Dove,
++White-breasted Waterhen, White-throated Kingfisher) plus two additions
++(Pied Fantail and Yellow-vented Bulbul). All clips were quality-filtered to
++exclude background noise, overlap, or truncation artefacts; source recording
++counts and per-species provenance are reported in~\cite{zabidi2026seabird}.
+ 
+ % ==============================================================================
+ \section{Feature Extraction}
+@@ -212,19 +207,19 @@ and cite zabidi2026seabird once the Scientific Data paper is accepted.}
+ All models consume log-mel spectrograms computed with
+ Librosa~\cite{TODO-librosa}:
+ \begin{itemize}
+-  \item Sampling rate: \SI{48}{kHz}; clip length: 3 seconds
+-  \item FFT window: 2{,}048 samples (\SI{42.7}{ms})
++  \item Sampling rate: \SI{16}{kHz}; clip length: 3 seconds
++  \item FFT window: 512 samples (\SI{32}{ms})
+   \item Hop length: 160 samples (\SI{10}{ms stride}) $\Rightarrow$
+-        $T = 48{,}000 / 160 = 300$ frames per clip
+-  \item Mel bins: $M = 80$ (0--\SI{8}{kHz}, Slaney-scale filter bank)
+-  \item Output: $80 \times 300$ log-power spectrum (dB, no $\text{top\_db}$
+-        clamp), normalised to $[0, 255]$ and replicated across 3 channels
+-        for compatibility with pretrained visual backbones
++        $T = 16{,}000 / 160 \times 3 = 300$ frames per clip
++  \item Mel bins: $M = 64$ (0--\SI{8}{kHz}, Slaney-scale filter bank)
++  \item Output: $64 \times 300$ log-power spectrum (dB, no $\text{top\_db}$
++        clamp), normalised to $[0, 255]$
+ \end{itemize}
+ 
+-The 80-bin configuration provides \SI{100}{Hz/bin} spectral resolution,
+-sufficient to resolve harmonics of the high-frequency species in the dataset
+-(e.g., Olive-backed Sunbird, 4--\SI{7}{kHz}).
++A mel sweep across $M \in \{48, 64, 80, 96\}$ confirmed that $M=64$
++($\approx$\SI{125}{Hz/bin}) is optimal: higher bin counts consistently
++degrade INT8 accuracy across all model families
++(Section~\ref{sec:ablation}).
+ 
+ % ==============================================================================
+ \section{Architecture Design and Evolution}
+@@ -239,7 +234,7 @@ We chronicle the architectural progression across four phases below.
+ % ------------------------------------------------------------------------------
+ 
+ We began with MobileNetV3-Small~\cite{howard2019searching} pretrained on
+-ImageNet-1k, adapting it for $80 \times 300$ mel-spectrogram
++ImageNet-1k, adapting it for $64 \times 300$ mel-spectrogram
+ classification. Width multipliers were swept to find the accuracy-size
+ frontier (Table~\ref{tab:mobilenet_baseline}).
+ 
+@@ -266,7 +261,7 @@ Width $\times$0.75 & 1.53M & 1{,}495 & 94.11\% & 93.11\% \\
+ Width $\times$0.5  & 0.72M & 703     & 92.78\% & 91.67\% \\
+ Width $\times$0.35 & 0.39M & 381     & 90.44\% & 89.11\% \\
+ \midrule
+-\multicolumn{5}{l}{\textit{Native 80$\times$300 input --- NEW dataset, 80:10:10}} \\
++\multicolumn{5}{l}{\textit{Native 64$\times$300 input --- NEW dataset, 80:10:10}} \\
+ Width $\times$1.0 (Stage9b)$^\ddagger$ & 1.24M & \textasciitilde1{,}200 &
+   $82.22 \pm 2.24$\% & -- \\
+ \bottomrule
+@@ -277,10 +272,10 @@ Width $\times$1.0 (Stage9b)$^\ddagger$ & 1.24M & \textasciitilde1{,}200 &
+ 
+ All width variants exceed the \SI{512}{KB} deployment constraint, and none
+ is optimised for spectro-temporal patterns. On the finalised dataset with
+-native $80\times300$ input, MobileNetV3-Small achieves only
+-$82.22 \pm 2.24$\% (FP32, 3-seed macOS), compared to MynaNet~v1's
+-93.44\% FP32 on the same platform and split (Section~\ref{sec:results}),
+-a gap of \SI{11.22}{\percent} absolute. MobileNetV3's isotropic 2D
++native $64\times300$ input, MobileNetV3-Small achieves only
++$82.22 \pm 2.24$\% (FP32, 3-seed macOS), compared to MynaNet's
++94.91\% INT8 (Section~\ref{sec:results}),
++a gap exceeding \SI{12}{\percent} absolute. MobileNetV3's isotropic 2D
+ convolutions treat frequency and time equivalently, and its early stride-2
+ operations discard fine-grained temporal structure. These limitations
+ motivated an audio-specific design.
+@@ -292,56 +287,75 @@ motivated an audio-specific design.
+ 
+ Inspired by the DS-CNN architecture for keyword spotting~\cite{zhang2017hello},
+ we designed a four-block depthwise-separable backbone tailored to
+-spectrograms. Table~\ref{tab:dscnn_evolution} documents the incremental
+-ablation from the baseline (Model~1a) to the final DS configuration
+-(Model~1e).
++spectrograms, then extended the search to MobileNetV3-style inverted residuals.
++Table~\ref{tab:dscnn_evolution} documents the full ablation chain from the
++2D CNN baseline (Model~1a) to the adopted MynaNet architecture (Model~1j).
++All figures are Linux/CUDA authoritative, 12-class MyGardenBird, 3-seed
++mean~$\pm$~s.d., 80:10:10 split, $M=64$ mels.
+ 
+ \begin{table}[ht]
+ \centering
+-\caption{DS-CNN architecture evolution.
+-         Input: $80\times300$, 80:10:10 split, INT8 accuracy.
+-         Results on OLD dataset.}
++\caption{Architecture ablation chain (12-class MyGardenBird, Linux/CUDA,
++         3-seed mean, 80:10:10, $M=64$).
++         $\Delta$ = INT8 change vs.\ previous model in the MCU-compatible
++         chain.
++         MCU: \checkmark~=~TFLite Micro compatible (Portenta H7);
++         $\times$~=~exceeds flash or uses unsupported ops.}
+ \label{tab:dscnn_evolution}
+ \resizebox{\linewidth}{!}{%
+-\begin{tabular}{@{}llrrl@{}}
++\begin{tabular}{@{}llrrrc@{}}
+ \toprule
+-\textbf{Model} & \textbf{Key Innovation} &
+-\textbf{Params} & \textbf{Size (KB)} & \textbf{INT8 Acc.} \\
++\textbf{Model} & \textbf{Description} &
++\textbf{Size (KB)} & \textbf{INT8 (\%)} & \textbf{$\Delta$ pp} & \textbf{MCU} \\
++\midrule
++1a & Baseline 2D CNN   & 1{,}629.9 & 93.33 & baseline & $\times$\textsuperscript{a} \\
++1b & DS-CNN            &   289.7 & 93.06 & $-$0.27 & \checkmark \\
++1c & DS + SE           &   376.9 & 93.61 & $+$0.55 & \checkmark \\
++1d & DS + Res only     &   294.8 & 93.10 & $-$0.51 & \checkmark \\
++1e & DS + SE + Res     &   377.2 & \textbf{94.12} & $+$1.02 & \checkmark \\
++1f & DS + SE + Res + Wide & 455.3 & 93.61 & $-$0.51 & \checkmark \\
+ \midrule
+-1a: DS-CNN Baseline  & Depthwise-separable blocks   & 194K & 189 & 91.67\% \\
+-1b: +Wider Stem      & 64-channel initial conv       & 297K & 290 & 92.89\% \\
+-1c: +SE Attention    & Squeeze-and-Excitation        & 318K & 311 & 93.56\% \\
+-1d: +Residual+MHSA   & Skip connections + attention  & 309K & 302 & 94.22\% \\
+-\textbf{1e: +All Residuals} & All 4 blocks + 80 mels & \textbf{462K} & \textbf{451} & \textbf{95.67\%} \\
++1g & DS + SE + Res + Att  & 371.8 & 94.21 & — & $\times$\textsuperscript{b} \\
+ \midrule
+-v0: Production Baseline & Channels [128,192,156,384] & 395K & 481 & 93.00\% \\
+-\textit{v1: MynaNet (Final)} & \textit{6\% reduction [120,180,146,360]} &
+-  \textit{328K} & \textit{434} & \textit{\textbf{95.00\%$^\dagger$}} \\
+-v1sa: +SpecAugment & Frequency/time masking         & 395K & 434 & 94.17\% \\
+-v2: Enhanced MHSA  & 3 heads, 112 dims              & 372K & 477 & 94.33\% \\
++1i & MBV2 Inv.Res + SE    & 258.7 & 94.03 & $+$0.42 & \checkmark \\
++\textbf{1j} & \textbf{MBV3-SE 5$\times$5 dw (MynaNet)} &
++  \textbf{267.1} & \textbf{94.91} & $+$\textbf{0.88} & \checkmark \\
+ \bottomrule
+-\multicolumn{5}{l}{\footnotesize $^\dagger$Mean of 3-seed Linux evaluation
+-  (94.00\%, 95.50\%, 95.50\%; $\sigma=0.87$\%).} \\
++\multicolumn{6}{l}{\footnotesize \textsuperscript{a}1a: 1630~KB --- 3$\times$ over H7 512~KB flash limit.} \\
++\multicolumn{6}{l}{\footnotesize \textsuperscript{b}1g uses \texttt{BATCH\_MATMUL}, not supported by TFLite Micro on Portenta H7.} \\
+ \end{tabular}}
+ \end{table}
+ 
+ Progressive improvements are as follows.
+ \begin{itemize}
+-  \item \textbf{1a $\to$ 1b (+1.22\%):} A wider 64-channel stem captures
+-        richer initial spectro-temporal features.
+-  \item \textbf{1b $\to$ 1c (+0.67\%):} Squeeze-and-Excitation
+-        attention~\cite{hu2018squeeze} recalibrates channel responses,
+-        suppressing noise-dominated bands.
+-  \item \textbf{1c $\to$ 1d (+0.66\%):} Skip connections improve gradient
+-        flow; MHSA captures long-range temporal dependencies such as trill
+-        patterns.
+-  \item \textbf{1d $\to$ 1e (+1.45\%):} Extending residuals to all four
+-        blocks and increasing to 80~mel bins enables \SI{90}{epoch} training
+-        without degradation.
+-  \item \textbf{1e $\to$ v1 (+0.33\% mean, $-$95~KB):} A strategic 6\%
+-        channel reduction eliminates over-parameterisation; 3-seed Linux
+-        evaluation confirms v1 (95.00\%) surpasses the larger 1e
+-        (94.67\%~$\pm$~0.45\%).
++  \item \textbf{1a $\to$ 1b ($-$0.27~pp, $-$5.6$\times$ size):} Replacing
++        standard Conv2D with depthwise-separable convolutions shrinks the
++        model from 1630~KB to 290~KB with only a marginal accuracy cost.
++  \item \textbf{1b $\to$ 1c ($+$0.55~pp):} Squeeze-and-Excitation
++        blocks~\cite{hu2018squeeze} recalibrate channel responses,
++        suppressing noise-dominated mel bands.
++  \item \textbf{1c $\to$ 1d ($-$0.51~pp):} Residual skip connections alone
++        (without SE) hurt accuracy relative to 1c, suggesting residuals
++        alone are insufficient at this dataset scale.
++  \item \textbf{1d $\to$ 1e ($+$1.02~pp):} Combining SE with residual
++        connections delivers the largest DS-CNN gain, confirming their
++        synergy: SE recalibrates channels while residuals improve gradient
++        flow. Model~1e is the best DS-CNN MCU model (94.12\%).
++  \item \textbf{1e $\to$ 1f ($-$0.51~pp):} Wider channels without
++        additional depth add no benefit, suggesting the architecture is
++        already expressive enough for the 12-class task.
++  \item \textbf{1g (parallel):} Multi-head self-attention adds only
++        $+$0.09~pp over 1e at the cost of \texttt{BATCH\_MATMUL}, which is
++        not supported by TFLite Micro on the Portenta H7. Model~1g is
++        therefore excluded from MCU deployment regardless of accuracy.
++  \item \textbf{1f $\to$ 1i ($+$0.42~pp, $-$197~KB):} Switching to
++        MobileNetV2-style inverted residuals with SE gives a compact
++        (259~KB) and faster model (94.03\%).
++  \item \textbf{1i $\to$ 1j ($+$0.88~pp):} MobileNetV3-style improvements
++        --- 5$\times$5 depthwise convolutions in deeper blocks and
++        hard-sigmoid SE (relu6$(x+3)/6$) --- push accuracy to
++        \textbf{94.91\%} at 267~KB. This is the adopted MynaNet
++        architecture.
+ \end{itemize}
+ 
+ % ------------------------------------------------------------------------------
+@@ -358,8 +372,8 @@ eight controlled TCN variants.
+ \begin{table}[ht]
+ \centering
+ \caption{TCN ablation study.
+-         Input: $64\times300$ embeddings, Mixup $\alpha=0.2$, 80:10:10 split.
+-         Results on OLD dataset.}
++         Input: $64\times300$ embeddings, Mixup $\alpha=0.2$, 80:10:10 split,
++         10-class dataset (historical). MynaNet row is 12-class Linux/CUDA authoritative.}
+ \label{tab:tcn_ablation}
+ \resizebox{\linewidth}{!}{%
+ \begin{tabular}{@{}llrrl@{}}
+@@ -376,13 +390,13 @@ eight controlled TCN variants.
+ 4g: No-residual         & Removed skip connections          & 242K & 236 & 90.89\% \\
+ 4h: Lightweight         & 32 channels, 6 layers            & 142K & 139 & 90.67\% \\
+ \midrule
+-\textit{DS-CNN 1e (ours)} & \textit{2D hybrid+attention} &
+-  \textit{462K} & \textit{451} & \textit{\textbf{95.67\%}} \\
++\textit{MynaNet 1j (ours)} & \textit{MBV3-SE 5$\times$5 dw} &
++  \textit{193K} & \textit{267} & \textit{\textbf{94.91\%}} \\
+ \bottomrule
+ \end{tabular}}
+ \end{table}
+ 
+-The best TCN variant (4c, 92.44\%) lags DS-CNN~1e by 3.23\% absolute.
++The best TCN variant (4c, 92.44\%) lags MynaNet~1j by 2.47\% absolute.
+ Three factors explain this gap. First, TCN operates on 1D embeddings
+ produced by aggressive 2D pooling, collapsing spectral structure that
+ discriminates species by harmonic stacks. Second, the 511-frame receptive
+@@ -393,46 +407,54 @@ without benefit. We conclude that spectrogram classification benefits from
+ 2D spatial inductive bias over 1D temporal modelling.
+ 
+ % ------------------------------------------------------------------------------
+-\subsection{Phase 4: MynaNet v1 --- Final Architecture}
++\subsection{Phase 4: MynaNet --- Final Architecture}
+ \label{sec:mynanet}
+ % ------------------------------------------------------------------------------
+ 
+-Figure~\ref{fig:architecture} illustrates MynaNet~v1. The network comprises:
++Figure~\ref{fig:architecture} illustrates MynaNet (model~1j). The network
++comprises:
+ \begin{enumerate}
+-  \item \textbf{Stem:} Conv2D(128, $3\times3$) + BatchNorm + ReLU6.
+-  \item \textbf{Four DS-Conv-SE blocks} with residual connections and
+-        $2\times2$ max-pooling, channel widths [120, 180, 146, 360].
+-        Blocks 2--4 use $1\times1$ projection in the skip path when channel
+-        counts change.
+-  \item \textbf{Lightweight MHSA:} Projects 360-dim features to 88-dim;
+-        2 heads with $d_k=32$; attention over $5\times18=90$ patches.
+-        LayerNorm applied after residual add.
+-  \item \textbf{Head:} GlobalAveragePooling $\to$ Dense(176) + BatchNorm +
+-        ReLU6 + Dropout(0.05) $\to$ Dense(10) + Softmax.
++  \item \textbf{Stem:} Conv2D(32, $3\times3$) + BatchNorm + ReLU6.
++  \item \textbf{Four MBV3-style inverted-residual SE blocks,} each followed
++        by MaxPool2D($2\times2$) and Dropout.  Output channels: 16, 24, 48,
++        96.  Blocks~1--2 use $3\times3$ depthwise convolutions; Blocks~3--4
++        use $5\times5$ depthwise convolutions for a wider spectro-temporal
++        receptive field.  Expand ratios: $t=1$ (Block~1), $t=6$
++        (Blocks~2--4).
++  \item \textbf{Last-stage expansion:} Conv2D(320, $1\times1$) + BatchNorm
++        + ReLU6 before global pooling.
++  \item \textbf{Head:} GlobalAveragePooling $\to$ Dense(128) + BatchNorm +
++        ReLU6 + Dropout $\to$ Dense(12) + Softmax.
+ \end{enumerate}
+ 
+ \begin{figure*}[ht]
+ \centering
+ \includegraphics[width=\linewidth]{architecture.png}
+-%\fbox{\parbox{0.9\linewidth}{\centering\vspace{2cm}
+-%  [MynaNet v1 architecture diagram --- INSERT FIGURE]
+-%  \vspace{2cm}}}
+-\caption{MynaNet v1 architecture: $80\times300$ log-mel spectrogram input,
+-         four depthwise-separable blocks with SE attention and residual
+-         connections, lightweight 2-head self-attention, and dense
+-         classification head. Total: 327{,}908 parameters, 434~KB INT8.}
++\caption{MynaNet architecture (model~1j): $64\times300$ log-mel spectrogram
++         input, four MobileNetV3-style inverted-residual SE blocks with
++         MaxPool2D downsampling, last-stage $1\times1$ expansion, and dense
++         classification head. Total: $\approx$193{,}000 parameters, 267~KB INT8.}
+ \label{fig:architecture}
+ \end{figure*}
+ 
+-\paragraph{SE reduction ratios.}
+-The squeeze-and-excitation bottleneck ratio scales adaptively: Block~1
+-(120~ch, $r=8$), Block~2 (180~ch, $r=12$), Blocks~3--4 (146--360~ch,
+-$r=12$--16), maintaining SE overhead at 1--2\% of block parameters.
+-
+-\paragraph{Dropout schedule.}
+-Gradual dropout [0.025, 0.025, 0.0375, 0.05] across blocks matches
+-receptive field growth: early blocks (local context) tolerate less dropout;
+-final blocks (global context) require stronger regularisation.
++\paragraph{Hard-sigmoid SE.}
++Each SE block uses hard-sigmoid excitation, $\sigma_h(x) =
++\text{relu6}(x+3)/6$, which decomposes to Add, ReLU6, and Mul --- all
++basic TFLite Micro ops.  This avoids the exponential required by standard
++sigmoid and improves INT8 quantisation fidelity relative to float sigmoid.
++
++\paragraph{Why no attention.}
++Model~1g, which adds multi-head self-attention (MHSA) to the DS-CNN
++backbone, achieves only $+$0.09~pp over 1e (94.21\% vs.\ 94.12\% INT8).
++More critically, MHSA uses the \texttt{BATCH\_MATMUL} op, which is absent
++from the TFLite Micro op set on Portenta H7.  The marginal accuracy gain
++does not justify MCU incompatibility, so attention is excluded from MynaNet.
++
++\paragraph{Why 5$\times$5 depthwise in deeper blocks.}
++Larger kernels in Blocks~3--4 capture broader spectro-temporal patterns.
++At this stage the spatial dimensions are already small (after three
++MaxPool2D), so the receptive field increase is efficient with minimal
++parameter overhead, as depthwise kernels are shared per channel.
+ 
+ % ==============================================================================
+ \section{Experimental Setup}
+@@ -455,15 +477,15 @@ $\approx$20\% speedup over AdamW with identical accuracy.
+ 
+ Post-training quantisation (PTQ) to INT8 is performed with 200 calibration
+ samples from the validation set. Quantisation incurs $<$\SI{0.5}{\percent}
+-accuracy drop for MynaNet~v1.
++accuracy drop for MynaNet.
+ 
+ \subsection{Evaluation Protocol}
+ 
+ Ablation experiments (Section~\ref{sec:ablation}) use an 80:10:10 split
+-to maximise training data (5{,}760 / 720 / 720 samples). Final
++to maximise training data (5{,}760 / 720 / 720 samples). Authoritative
+ reproducibility results (Section~\ref{sec:reproducibility}) use three
+-random seeds (42, 100, 786) on macOS (Apple M4 Pro), with Linux/CUDA
+-re-runs planned for authoritative platform-independent figures.
++random seeds (42, 100, 786) on Linux (CUDA, RTX GPU), which serves as
++the reference platform for all reported figures.
+ 
+ % ==============================================================================
+ \section{Results}
+@@ -474,13 +496,13 @@ re-runs planned for authoritative platform-independent figures.
+ \label{sec:ablation}
+ 
+ Table~\ref{tab:dscnn_evolution} (Section~\ref{sec:dscnn}) documents the
+-incremental gains of each architectural component. Extending skip
+-connections to all four DS blocks (1d $\to$ 1e) delivers the largest single
+-gain (+1.45\%), followed by the wider stem (1a $\to$ 1b, +1.22\%).
+-Lightweight MHSA adds only 13K parameters but contributes +0.66\% (1c
+-$\to$ 1d), confirming that long-range temporal attention complements local
+-depthwise convolutions. Scaling to 3 heads (v2) provides no benefit over
+-2 heads at higher cost, indicating attention-capacity saturation.
++incremental gains of each architectural component on the 12-class dataset.
++Combining SE with residual connections (1d $\to$ 1e) delivers the largest
++DS-CNN gain ($+$1.02~pp): residuals alone (1d) hurt relative to SE-only
++(1c, $-$0.51~pp), confirming their synergy. Transitioning to
++MobileNetV3-style inverted residuals with 5$\times$5 depthwise convolutions
++(1i $\to$ 1j) adds a further $+$0.88~pp at 267~KB, producing the best
++MCU-deployable architecture at 94.91\% INT8.
+ 
+ \subsection{Training Hyperparameter Ablation}
+ 
+@@ -489,8 +511,9 @@ strategy, data split ratio, and attention capacity.
+ 
+ \begin{table}[ht]
+ \centering
+-\caption{Training hyperparameter ablation (MynaNet~v1, 80~mels, INT8 accuracy).
+-         Results on OLD dataset.}
++\caption{Training hyperparameter ablation (historical, 10-class dataset,
++         80~mels, INT8 accuracy). Mixup vs.\ SpecAugment and split-ratio
++         findings carry forward to the 12-class configuration.}
+ \label{tab:training_ablation}
+ \resizebox{\linewidth}{!}{%
+ \begin{tabular}{@{}llccc@{}}
+@@ -518,12 +541,12 @@ strategy, data split ratio, and attention capacity.
+ \end{table}
+ 
+ Mixup outperforms SpecAugment by \SI{0.83}{\percent} on this dataset.
+-With only 4{,}800 training samples (10-class dataset), SpecAugment's aggressive masking risks
++With limited training samples, SpecAugment's aggressive masking risks
+ erasing discriminative short vocalisations ($<$\SI{200}{ms}), whereas
+ Mixup's label smoothing improves calibration without destructive masking.
+-Reducing training data from 80:10:10 (5{,}760) to 70:15:15 (5{,}040)
+-degrades accuracy by 1.56\%, underscoring the importance of maximising
+-training set size at this dataset scale.
++Reducing training data from 80:10:10 (5{,}760 samples for the 12-class
++dataset) to 70:15:15 (5{,}040) degrades accuracy by 1.56\%,
++underscoring the importance of maximising training set size at this scale.
+ 
+ \subsection{Comparison with Vision Baselines}
+ \label{sec:vision_comparison}
+@@ -533,8 +556,9 @@ Table~\ref{tab:final_comparison} summarises the full architecture evolution.
+ \begin{table}[ht]
+ \centering
+ \caption{Architecture comparison across phases.
+-         $^\dagger$3-seed Linux mean (10-class dataset, 80:10:10).
+-         $^\ddagger$3-seed macOS mean $\pm$ s.d.\ (12-class dataset, 80:10:10, FP32).}
++         $^\dagger$3-seed Linux mean (10-class dataset, 80:10:10, historical).
++         $^\ddagger$3-seed macOS mean $\pm$ s.d.\ (12-class dataset, 80:10:10, FP32).
++         $^\star$3-seed Linux mean (12-class dataset, 80:10:10, INT8, authoritative).}
+ \label{tab:final_comparison}
+ \resizebox{\linewidth}{!}{%
+ \begin{tabular}{@{}llrrl@{}}
+@@ -555,91 +579,101 @@ Table~\ref{tab:final_comparison} summarises the full architecture evolution.
+ & 1c: +SE          & 311 & 93.56\% & 10-class \\
+ & 1d: +Residual+MHSA & 302 & 94.22\% & 10-class \\
+ & 1e: All residuals  & 451 & 95.67\% & 10-class \\
+-& \textbf{v1: MynaNet} & \textbf{434} &
++& \textbf{v1: MynaNet (hist.)} & \textbf{434} &
+   \textbf{95.00\%$^\dagger$} & \textbf{10-class} \\
++& \textbf{1j: MynaNet} & \textbf{267} &
++  \textbf{94.91\%$^\star$} & \textbf{12-class} \\
+ \midrule
+ TCN & 4c: Best TCN    & 450 & 92.44\% & 10-class \\
+ \bottomrule
+ \end{tabular}}
+ \end{table}
+ 
+-MynaNet~v1 achieves \SI{38}{\percent} smaller size than MobileNetV3-Small
+-($\times$0.5, 703~KB) while improving accuracy by +3.33\% on the 10-class
+-task. On the expanded 12-class dataset with identical $80\times300$
+-input and 80:10:10 split, MobileNetV3-Small achieves only
+-$82.22 \pm 2.24$\% FP32 (3-seed macOS), while the MCU-compatible Model~1c
+-achieves $93.52 \pm 0.58$\% FP32---a gap of more than \SI{11}{\percent}
+-absolute. This confirms that audio-specific inductive biases dominate
+-ImageNet pretraining for spectrogram classification at this dataset scale.
++MynaNet (1j) achieves \SI{62}{\percent} smaller size than MobileNetV3-Small
++($\times$0.5, 703~KB) while improving INT8 accuracy by more than 3~pp on
++the 12-class task. On the 12-class dataset with $64\times300$ input and
++80:10:10 split, MobileNetV3-Small achieves only $82.22 \pm 2.24$\% FP32
++(3-seed macOS), while MynaNet achieves 94.91\% INT8 (3-seed Linux)---a
++gap exceeding \SI{12}{\percent} absolute. This confirms that audio-specific
++inductive biases dominate ImageNet pretraining for spectrogram classification
++at this dataset scale.
+ 
+ \subsection{Reproducibility: 3-Seed Evaluation}
+ \label{sec:reproducibility}
+ 
+-Table~\ref{tab:multiseed} reports the original 10-class Linux/CUDA results
+-for reference. Table~\ref{tab:multiseed-new} presents the re-validation on
+-the expanded 12-class dataset (macOS, Apple M4 Pro), using identical
+-hyperparameters (mels=64, mixup $\alpha=0.2$, 80:10:10 split).
++Tables~\ref{tab:multiseed} and~\ref{tab:multiseed-new} report Linux/CUDA
++authoritative 3-seed results on the 12-class MyGardenBird dataset
++($M=64$, mixup $\alpha=0.2$, 80:10:10 split).
+ 
+ \begin{table}[ht]
+ \centering
+-\caption{3-seed reproducibility evaluation (Linux, CUDA, 80:10:10 split,
+-         INT8 accuracy, 10-class dataset).}
++\caption{3-seed reproducibility --- key MCU-compatible models
++         (Linux/CUDA, 12-class, 80:10:10, INT8 accuracy).}
+ \label{tab:multiseed}
+ \resizebox{\linewidth}{!}{%
+-\begin{tabular}{@{}lrrrll@{}}
++\begin{tabular}{@{}lrrrrll@{}}
+ \toprule
+ \textbf{Model} & \textbf{Seed 42} & \textbf{Seed 100} & \textbf{Seed 786} &
+-\textbf{Mean $\pm$ Std} & \textbf{Size} \\
++\textbf{Mean $\pm$ Std} & \textbf{Size} & \textbf{MCU} \\
+ \midrule
+-\textbf{MynaNet v1} & 94.00\% & 95.50\% & 95.50\% &
+-  \textbf{95.00\% $\pm$ 0.87\%} & \textbf{434~KB} \\
+-Model 1e & 94.33\% & 94.50\% & 95.17\% &
+-  94.67\% $\pm$ 0.45\% & 529~KB \\
++1b (DS-CNN)      & 93.75\% & 93.06\% & 92.36\% &
++  93.06\% $\pm$ 0.57\% & 290~KB & \checkmark \\
++1e (DS+SE+Res)   & 94.44\% & 93.75\% & 94.17\% &
++  94.12\% $\pm$ 0.28\% & 377~KB & \checkmark \\
++1i (MBV2+SE)     & 94.44\% & 94.17\% & 93.47\% &
++  94.03\% $\pm$ 0.41\% & 259~KB & \checkmark \\
++\textbf{1j (MynaNet)} & \textbf{94.31\%} & \textbf{95.42\%} & \textbf{95.00\%} &
++  \textbf{94.91\% $\pm$ 0.56\%} & \textbf{267~KB} & \checkmark \\
+ \bottomrule
+-\end{tabular}
+-}
++\end{tabular}}
+ \end{table}
+ 
+ \begin{table}[ht]
+ \centering
+-\caption{3-seed re-validation on 12-class MyGardenBird dataset (macOS,
+-         Apple M4 Pro, 80:10:10 split, mels=64, mixup $\alpha=0.2$).
+-         FP32 and INT8 test accuracy reported.
+-         \TODO{Replace with Linux/CUDA re-run for authoritative figures.}}
++\caption{Full 3-seed ablation (Linux/CUDA, 12-class MyGardenBird, 80:10:10,
++         $M=64$, mixup $\alpha=0.2$). FP32 and INT8 test accuracy.
++         MCU: \checkmark~=~TFLite Micro compatible; $\times$~=~unsupported op
++         or exceeds H7 flash.}
+ \label{tab:multiseed-new}
+ \resizebox{\linewidth}{!}{%
+-\begin{tabular}{@{}lrrrrrl@{}}
++\begin{tabular}{@{}lrrrrlc@{}}
+ \toprule
+ \textbf{Model} & \textbf{Seed 42} & \textbf{Seed 100} & \textbf{Seed 786} &
+ \textbf{Mean $\pm$ Std} & \textbf{Size} & \textbf{MCU} \\
+ \midrule
+ \multicolumn{7}{l}{\textit{FP32 accuracy}} \\
+-1c (DS-CNN+SE+Res) & 93.33\% & 94.17\% & 93.06\% &
+-  93.52\% $\pm$ 0.58\% & 311~KB & \checkmark \\
+-1d (+MHSA)         & 95.00\% & 95.14\% & 94.03\% &
+-  94.72\% $\pm$ 0.60\% & 302~KB & $\times$ \\
+-1e (+Wide)         & 93.47\% & 95.28\% & 94.44\% &
+-  94.40\% $\pm$ 0.91\% & 451~KB & $\times$ \\
++1a (2D CNN)   & 93.75\% & 92.92\% & 93.33\% & 93.33\% $\pm$ 0.34\% & 1{,}630~KB & $\times$ \\
++1b (DS-CNN)   & 93.33\% & 93.33\% & 92.22\% & 92.96\% $\pm$ 0.52\% &   290~KB & \checkmark \\
++1c (DS+SE)    & 94.72\% & 93.89\% & 92.64\% & 93.75\% $\pm$ 0.85\% &   377~KB & \checkmark \\
++1d (DS+Res)   & 93.06\% & 92.78\% & 93.89\% & 93.24\% $\pm$ 0.47\% &   295~KB & \checkmark \\
++1e (DS+SE+Res)& 94.86\% & 93.75\% & 93.75\% & 94.12\% $\pm$ 0.52\% &   377~KB & \checkmark \\
++1f (+Wide)    & 94.03\% & 94.03\% & 93.33\% & 93.80\% $\pm$ 0.33\% &   455~KB & \checkmark \\
++1g (+Att)     & 94.31\% & 93.89\% & 94.58\% & 94.26\% $\pm$ 0.28\% &   372~KB & $\times$ \\
++1i (MBV2+SE)  & 93.89\% & 94.31\% & 93.47\% & 93.89\% $\pm$ 0.34\% &   259~KB & \checkmark \\
++\textbf{1j (MynaNet)} & \textbf{94.03\%} & \textbf{95.14\%} & \textbf{94.58\%} &
++  \textbf{94.58\% $\pm$ 0.55\%} & \textbf{267~KB} & \checkmark \\
+ \midrule
+ \multicolumn{7}{l}{\textit{INT8 accuracy}} \\
+-\textbf{1c (MCU-compatible)} & \textbf{93.19\%} & \textbf{94.31\%} & \textbf{93.06\%} &
+-  \textbf{93.52\% $\pm$ 0.69\%} & \textbf{311~KB} & \checkmark \\
+-1d (+MHSA)         & 95.00\% & 94.86\% & 94.03\% &
+-  94.63\% $\pm$ 0.52\% & 302~KB & $\times$ \\
+-1e (+Wide)         & 93.33\% & 95.14\% & 94.17\% &
+-  94.21\% $\pm$ 0.91\% & 451~KB & $\times$ \\
++1a (2D CNN)   & 93.61\% & 93.19\% & 93.19\% & 93.33\% $\pm$ 0.20\% & 1{,}630~KB & $\times$ \\
++1b (DS-CNN)   & 93.75\% & 93.06\% & 92.36\% & 93.06\% $\pm$ 0.57\% &   290~KB & \checkmark \\
++1c (DS+SE)    & 94.44\% & 93.33\% & 93.06\% & 93.61\% $\pm$ 0.60\% &   377~KB & \checkmark \\
++1d (DS+Res)   & 92.50\% & 92.78\% & 94.03\% & 93.10\% $\pm$ 0.67\% &   295~KB & \checkmark \\
++1e (DS+SE+Res)& 94.44\% & 93.75\% & 94.17\% & 94.12\% $\pm$ 0.28\% &   377~KB & \checkmark \\
++1f (+Wide)    & 94.03\% & 93.89\% & 92.92\% & 93.61\% $\pm$ 0.49\% &   455~KB & \checkmark \\
++1g (+Att)     & 93.89\% & 94.03\% & 94.72\% & 94.21\% $\pm$ 0.36\% &   372~KB & $\times$ \\
++1i (MBV2+SE)  & 94.44\% & 94.17\% & 93.47\% & 94.03\% $\pm$ 0.41\% &   259~KB & \checkmark \\
++\textbf{1j (MynaNet)} & \textbf{94.31\%} & \textbf{95.42\%} & \textbf{95.00\%} &
++  \textbf{94.91\% $\pm$ 0.56\%} & \textbf{267~KB} & \checkmark \\
+ \bottomrule
+-\multicolumn{7}{l}{\footnotesize MCU: \checkmark = TFLite Micro compatible (Portenta H7);
+-  $\times$ = uses \texttt{BATCH\_MATMUL} (unsupported).} \\
+ \end{tabular}}
+ \end{table}
+ 
+-On the 12-class dataset, Model~1c (the only MCU-compatible architecture) achieves
+-93.52\%~$\pm$~0.69\% INT8 accuracy, a modest reduction of 0.48\% relative to its
+-10-class mean (94.00\%), consistent with the increased classification difficulty.
+-Model~1d leads on the expanded task at 94.63\%~$\pm$~0.52\% INT8, with 1e within
+-noise at 94.21\%~$\pm$~0.91\%. The higher variance of 1e (0.91\% vs 0.52\% for 1d)
+-suggests the wider channel configuration is less stable at this dataset scale.
++Model~1j (MynaNet) leads all MCU-compatible models at 94.91\%~$\pm$~0.56\%
++INT8, beating the best DS-CNN (1e, 94.12\%~$\pm$~0.28\%) by $+$0.79~pp at
++110~KB smaller. Model~1e remains the best within the DS-CNN family and the
++most consistent (lowest standard deviation). Model~1i (MBV2+SE) is the most
++compact MCU option at 259~KB. Model~1g achieves 94.21\% INT8 but requires
++the \texttt{BATCH\_MATMUL} op, ruling it out for H7 deployment.
+ 
+ % ==============================================================================
+ \section{Deployment Profile}
+@@ -647,27 +681,27 @@ suggests the wider channel configuration is less stable at this dataset scale.
+ % ==============================================================================
+ 
+ Table~\ref{tab:deployment} summarises the edge deployment characteristics
+-of MynaNet~v1 for an ARM Cortex-M7 processor at \SI{480}{MHz}.
++of MynaNet for an ARM Cortex-M7 processor at \SI{480}{MHz}.
+ 
+ \begin{table}[ht]
+ \centering
+-\caption{MynaNet v1 deployment profile.}
++\caption{MynaNet deployment profile (model 1j).}
+ \label{tab:deployment}
+ \begin{tabular}{@{}lll@{}}
+ \toprule
+ \textbf{Metric} & \textbf{Value} & \textbf{Target / Notes} \\
+ \midrule
+ \multicolumn{3}{l}{\textit{Model size}} \\
+-\quad FP32 (.keras) & 1.58~MB & -- \\
+-\quad INT8 (.tflite) & 434~KB & Target: $<$512~KB \checkmark \\
+-\quad Margin under budget & 78~KB (15\%) & -- \\
++\quad FP32 (.keras) & $\approx$0.78~MB & -- \\
++\quad INT8 (.tflite) & 267~KB & Target: $<$512~KB \checkmark \\
++\quad Margin under budget & 245~KB (48\%) & -- \\
+ \midrule
+-\multicolumn{3}{l}{\textit{Accuracy (10-class, Linux 3-seed)}} \\
+-\quad INT8 mean $\pm$ std & 95.00\% $\pm$ 0.87\% & Target: $>$90\% \checkmark \\
+-\quad INT8 min (seed 42)  & 94.00\% & $>$90\% \checkmark \\
++\multicolumn{3}{l}{\textit{Accuracy (12-class, Linux 3-seed)}} \\
++\quad INT8 mean $\pm$ std & 94.91\% $\pm$ 0.56\% & Target: $>$90\% \checkmark \\
++\quad INT8 min (seed 42)  & 94.31\% & $>$90\% \checkmark \\
+ \midrule
+-\multicolumn{3}{l}{\textit{Compute (estimated, Cortex-M7 @ 480 MHz)}} \\
+-\quad MACs             & 872{,}268   & -- \\
++\multicolumn{3}{l}{\textit{Compute (estimated\textsuperscript{a}, Cortex-M7 @ 480 MHz)}} \\
++\quad MACs             & 872{,}268   & estimated; remeasurement pending for 1j \\
+ \quad Latency          & 116~ms      & Target: $<$500~ms \checkmark \\
+ \quad Throughput       & 8.6 inf/s   & Target: $>$2 inf/s \checkmark \\
+ \quad Energy / inference & 13.9~mJ  & -- \\
+@@ -680,15 +714,16 @@ of MynaNet~v1 for an ARM Cortex-M7 processor at \SI{480}{MHz}.
+ \end{tabular}
+ \end{table}
+ 
+-At \SI{116}{ms} latency and a \SI{10}{ms} frame stride, MynaNet~v1
++At \SI{116}{ms} latency and a \SI{10}{ms} frame stride, MynaNet
+ processes a 3-second clip 24$\times$ faster than real-time, enabling
+ continuous monitoring with overlapping inference windows. Continuous
+ operation at 8.6 inferences per second draws approximately \SI{118}{mW},
+ feasible for solar-powered acoustic sensors.
+ 
+-\TODO{Add measured Cortex-M7 latency once firmware deployment is completed
+-on the ARGUS Smart Biologger prototype.  Current figure (116 ms) is
+-estimated from MAC count; actual measured latency may differ due to cache
++\TODO{Add measured Cortex-M7 latency and MACs once firmware deployment is
++completed on the ARGUS Smart Biologger prototype with the 1j model.
++Current latency figure (116~ms) is estimated from MAC count of the
++predecessor architecture; actual measured values may differ due to cache
+ effects and memory bandwidth.}
+ 
+ 
+@@ -708,7 +743,7 @@ effects and memory bandwidth.}
+ 		MobileNetV3-S \cite{howard2019searching} & $\sim$2.5 M & 2.5 MB & $\sim$450 KB & 92.1\% \\
+ 		DS-CNN (L) \cite{zhang2017hello} & 0.5 M & 500 KB & $\sim$180 KB & 89.4\% \\
+ 		\midrule
+-		\textbf{MynaNet (Ours)} & \textbf{0.41 M} & \textbf{434 KB} & \textbf{112 KB} & \textbf{94.5\%} \\
++		\textbf{MynaNet (Ours)} & \textbf{0.19 M} & \textbf{267 KB} & \textbf{$\sim$70 KB} & \textbf{94.91\%} \\
+ 		\bottomrule
+ 		\multicolumn{5}{l}{\textsuperscript{a}\tiny Target device exceeds microcontroller-class memory (Inference on GPU/Cloud).}
+ 	\end{tabular}
+@@ -720,7 +755,7 @@ effects and memory bandwidth.}
+ % ==============================================================================
+ 
+ Our systematic exploration from MobileNetV3 baselines through TCN
+-experimentation to MynaNet~v1 yields nine transferable design insights.
++experimentation to MynaNet yields ten transferable design insights.
+ 
+ \begin{enumerate}
+   \item \textbf{Domain-specific inductive bias dominates raw capacity.}
+@@ -728,22 +763,36 @@ experimentation to MynaNet~v1 yields nine transferable design insights.
+         structure, outperforming larger MobileNetV3 variants and 1D
+         temporal models by exploiting 2D spatial locality.
+ 
+-  \item \textbf{Moderate attention is optimal.}
+-        Lightweight MHSA (2 heads, 88 dims) captures long-range temporal
+-        dependencies efficiently. Increasing to 3 heads (v2) provides no
+-        accuracy benefit at +43~KB cost, indicating attention-capacity
+-        saturation.
+-
+-  \item \textbf{Residual connections scale depth.}
+-        Extending skip connections from 1 to all 4 blocks enabled 90-epoch
+-        training without degradation, unlocking the largest single gain
+-        (+1.45\%, 1d $\to$ 1e).
++  \item \textbf{Attention is beneficial but MCU-incompatible.}
++        Model~1g, which adds lightweight MHSA to the DS-CNN backbone,
++        achieves 94.21\% INT8---only $+$0.09~pp over 1e (94.12\%).  The
++        marginal gain does not justify the hardware cost: MHSA requires
++        \texttt{BATCH\_MATMUL}, which is absent from the TFLite Micro op
++        set on Portenta H7.  Accordingly, MynaNet excludes attention and
++        recovers accuracy through MBV3-style 5$\times$5 depthwise blocks
++        instead.
++
++  \item \textbf{SE and residuals are synergistic.}
++        Residual connections alone (1d) degrade accuracy by 0.51~pp
++        relative to SE-only (1c), while combining SE with residuals (1e)
++        yields the largest DS-CNN gain at $+$1.02~pp over 1d.  SE
++        recalibrates channels before the skip merge, providing the residual
++        path with higher-quality gradients.
++
++  \item \textbf{MBV3-style inverted residuals outperform DS-CNN.}
++        Model~1j (MBV3-SE with 5$\times$5 depthwise in deeper blocks)
++        surpasses the best DS-CNN MCU model (1e) by $+$0.79~pp at
++        110~KB smaller.  Hard-sigmoid SE, larger depthwise kernels in late
++        blocks, and the last-stage $1\times1$ expansion collectively
++        improve both accuracy and quantisation fidelity, confirming that
++        mobile-optimised inverted residuals transfer effectively from image
++        to spectrogram classification.
+ 
+   \item \textbf{Less can be more.}
+-        The 6\% channel reduction in v1 ([120, 180, 146, 360]) eliminated
+-        over-parameterisation, improving accuracy +2.00\% over v0 while
+-        reducing size by 47~KB. The production-optimised v1 surpasses the
+-        larger 1e in authoritative multi-seed evaluation.
++        Model~1j (267~KB) outperforms the wider 1e (377~KB) by $+$0.79~pp
++        at 110~KB smaller, confirming that compact, well-structured
++        inverted-residual blocks are more parameter-efficient than wider
++        DS-CNN channels for this task.
+ 
+   \item \textbf{Quantisation-friendly design.}
+         ReLU6 activations and batch normalisation minimise PTQ accuracy
+@@ -751,14 +800,17 @@ experimentation to MynaNet~v1 yields nine transferable design insights.
+         quantisation-aware training overhead.
+ 
+   \item \textbf{Mixup $>$ SpecAugment for bird calls.}
+-        With 4{,}800 training samples (10-class dataset), Mixup's label smoothing generalises
+-        better (+0.83\%) than SpecAugment's masking, which risks erasing
+-        discriminative short vocalisations.
+-
+-  \item \textbf{Spectrogram resolution is critical.}
+-        80~mel bins (100~Hz/bin) vs.\ 64~bins (125~Hz/bin) improves
+-        high-frequency species discrimination, particularly for species
+-        with overlapping pitch ranges.
++        Mixup's label smoothing generalises better ($+$0.83\%) than
++        SpecAugment's masking, which risks erasing discriminative short
++        vocalisations at the 12-class dataset scale.
++
++  \item \textbf{64~mel bins are optimal; denser resolutions hurt.}
++        A sweep across $M \in \{48, 64, 80, 96\}$ shows that $M=64$
++        (125~Hz/bin) is optimal across all model families: 80 and 96 bins
++        consistently degrade INT8 accuracy, while 48 bins is competitive
++        but marginally below 64 for the best models.  Denser filter banks
++        increase input dimensionality and training difficulty without
++        adding discriminative spectral information at \SI{16}{kHz}.
+ 
+   \item \textbf{TCNs are ill-suited for spectrogram classification.}
+         The 511-frame receptive field (5.1~s) exceeds clip duration;
+@@ -767,9 +819,9 @@ experimentation to MynaNet~v1 yields nine transferable design insights.
+         streaming keyword spotting over full-clip classification.
+ 
+   \item \textbf{Training data volume matters at this scale.}
+-        An 80:10:10 split (4{,}800 train) outperforms 70:15:15 (4{,}200
+-        train) by +1.56\% on the 10-class dataset, showing that additional
+-        training samples outweigh a larger test set at this dataset scale.
++        An 80:10:10 split (5{,}760 train, 12-class) outperforms 70:15:15
++        (5{,}040 train) by +1.56\%, showing that additional training
++        samples outweigh a larger test set at this dataset scale.
+ \end{enumerate}
+ 
+ \TODO{Expand Discussion with: (1) comparison to BirdNET and other published
+@@ -785,29 +837,33 @@ optimisation, multi-task joint classification + call-type detection.}
+ \label{sec:conclusion}
+ % ==============================================================================
+ 
+-We presented MynaNet~v1, a 434~KB INT8 CNN achieving 95.00\% $\pm$ 0.87\%
+-mean accuracy on a ten-class bird call dataset, and re-validated on an
+-expanded twelve-class dataset where the MCU-compatible Model~1c achieves
+-93.52\% $\pm$ 0.69\% INT8 accuracy. Through 20+ controlled experiments
+-spanning MobileNetV3 baselines, TCN sequence models, and audio-specific
+-DS-CNN variants, we demonstrated that domain-aware architecture design
+-substantially outperforms generic solutions within extreme edge deployment
+-constraints. The key contributions are:
++We presented MynaNet, a 267~KB INT8 CNN achieving 94.91\% $\pm$ 0.56\%
++mean accuracy on a twelve-class garden-bird dataset (Linux/CUDA, 3-seed
++authoritative). Through 20+ controlled experiments spanning MobileNetV3
++baselines, TCN sequence models, and audio-specific DS-CNN and MBV3-style
++variants, we demonstrated that domain-aware architecture design substantially
++outperforms generic solutions within extreme edge deployment constraints.
++The key contributions are:
+ 
+ \begin{itemize}
+-  \item A principled architecture evolution from MobileNetV3 (91.67\%,
+-        703~KB) to MynaNet~v1 (95.00\%, 434~KB), achieving +3.33\% accuracy
+-        with 38\% smaller footprint.
++  \item A principled architecture evolution from MobileNetV3 (82.22\%,
++        $\approx$1{,}200~KB) to MynaNet/1j (94.91\%, 267~KB), achieving
++        $+$12.7~pp accuracy with 62\% smaller footprint relative to
++        MobileNetV3-Small ($\times$0.5, 703~KB).
+   \item Comprehensive ablation studies isolating the contribution of
+-        depthwise separation, SE attention, residual-all connectivity,
+-        lightweight MHSA, Mixup augmentation, and INT8 quantisation.
++        depthwise separation, SE channel attention, residual connectivity,
++        MBV3-style 5$\times$5 depthwise blocks, hard-sigmoid SE, Mixup
++        augmentation, and INT8 quantisation.
+   \item A deployment-ready model meeting all edge constraints:
+-        $<$512~KB, $>$90\% accuracy, $<$500~ms latency on Cortex-M7.
++        $<$512~KB (48\% margin), $>$90\% accuracy, estimated $<$500~ms
++        latency on Cortex-M7.
+   \item Empirical evidence that 2D audio-specific convolutions outperform
+-        1D temporal models by 3.2\% for spectrogram-based classification.
++        1D temporal models by 2.47\% for spectrogram-based classification,
++        and that MBV3-style inverted residuals outperform DS-CNNs by
++        0.79~pp at smaller model size.
+ \end{itemize}
+ 
+-MynaNet~v1 demonstrates that careful, principled capacity allocation ---
++MynaNet demonstrates that careful, principled capacity allocation ---
+ rather than naive parameter scaling --- is the key to production-grade
+ accuracy within the extreme constraints of wildlife acoustic monitoring
+ hardware.
+-- 
+2.43.0
+

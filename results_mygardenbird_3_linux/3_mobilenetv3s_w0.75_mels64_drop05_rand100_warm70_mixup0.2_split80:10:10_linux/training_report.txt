@@ -1,0 +1,234 @@
+================================================================================
+MODEL 3: MobileNetV3Small (width_mult=0.75, from scratch)
+================================================================================
+Training started: 2026-06-17 09:04:14
+Platform: Linux x86_64
+Python: 3.10.19
+TensorFlow: 2.15.0
+Keras: 2.15.0
+
+
+================================================================================
+HYPERPARAMETERS
+================================================================================
+
+System Configuration:
+  Platform: Linux x86_64
+  GPU: 1 device(s) detected
+  GPU Memory: Dynamic growth enabled
+
+Audio Processing:
+  Target Sample Rate:     16000 Hz
+  Audio Length:           3 seconds (48000 samples)
+  FFT Size (N_FFT):       512
+  FFT Window:             Hann (YAMNet standard, reduces spectral leakage)
+  Window Length:          400 samples (25ms at 16kHz)
+  Hop Length:             160 samples (10.0 ms)
+  Mel Bins (N_MELS):      64
+  Max Frequency (FMAX):   8000 Hz
+  Time Frames:            300 (FIXED)
+  Spectrogram Shape:      64x300
+  Center Padding:         Enabled (librosa center=True)
+
+Model Architecture:
+  Model Type:             MobileNetV3Small (Series 3)
+  Width Multiplier:       0.75
+  Pretrained Weights:     None (training from scratch — audio domain)
+  Input Replication:      1-channel → 3-channel (Lambda repeat)
+  Classification Head:    Dense(128,relu) + BN + Dropout → Dense(n_classes,softmax)
+  Dropout Rate:           0.05
+  Input Shape:            (64, 300, 1)
+
+Training Configuration:
+  Random Seed:            100
+  Warmup Epochs:          70
+  Fine-tune Epochs:       20
+  Total Epochs:           90
+  Batch Size:             32
+  Warmup Learning Rate:   0.001
+  Fine-tune Learning Rate:1e-05
+  LR Schedule:            cosine
+  Optimizer:              AdamW
+  Loss Function:          Sparse Categorical Crossentropy
+
+Data Augmentation:
+  Mode:                   mixup
+  Type:                   Mixup
+  Alpha:                  0.2
+  Data Multiplier:        2x (original + mixup)
+
+Quantization:
+  Method:                 Post-Training Quantization (PTQ)
+  Target Format:          INT8 TFLite
+  Calibration Samples:    200
+  Input/Output Type:      INT8
+
+Data Paths:
+  Flat Directory:         /Volumes/Evo/MYGARDENBIRD/mygardenbird16khz
+  Splits CSV:             /Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv
+  Spectrogram Cache:      /Volumes/Evo/MYGARDENBIRD/precompute/spectrograms_16k_mels64
+  Output Directory:       results_mygardenbird_3_linux/3_mobilenetv3s_w0.75_mels64_drop05_rand100_warm70_mixup0.2_split80:10:10_linux
+
+================================================================================
+DATASET INFORMATION
+================================================================================
+
+Total Samples:          7200
+Number of Classes:      12
+
+Data Split (Fixed per-class):
+  Training:             5760 (80.0%)
+  Validation:           720 (10.0%)
+  Test:                 720 (10.0%)
+
+Class Distribution:
+  Coppersmith Barbet            :   600 samples ( 8.33%)
+  Spotted Dove                  :   600 samples ( 8.33%)
+  Collared Kingfisher           :   600 samples ( 8.33%)
+  Asian Koel                    :   600 samples ( 8.33%)
+  White-breasted Waterhen       :   600 samples ( 8.33%)
+  Common Iora                   :   600 samples ( 8.33%)
+  Large-tailed Nightjar         :   600 samples ( 8.33%)
+  Yellow-vented Bulbul          :   600 samples ( 8.33%)
+  Pied Fantail                  :   600 samples ( 8.33%)
+  Olive-backed Sunbird          :   600 samples ( 8.33%)
+  Common Tailorbird             :   600 samples ( 8.33%)
+  White-throated Kingfisher     :   600 samples ( 8.33%)
+
+================================================================================
+MODEL ARCHITECTURE
+================================================================================
+
+Model: "MobileNetV3Small_w0.75"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input (InputLayer)          [(None, 64, 300, 1)]      0         
+                                                                 
+ channel_replicate (Lambda)  (None, 64, 300, 3)        0         
+                                                                 
+ MobilenetV3small (Function  (None, 2, 10, 432)        583160    
+ al)                                                             
+                                                                 
+ global_pool (GlobalAverage  (None, 432)               0         
+ Pooling2D)                                                      
+                                                                 
+ fc1 (Dense)                 (None, 128)               55424     
+                                                                 
+ fc1_bn (BatchNormalization  (None, 128)               512       
+ )                                                               
+                                                                 
+ fc_drop (Dropout)           (None, 128)               0         
+                                                                 
+ output (Dense)              (None, 12)                1548      
+                                                                 
+=================================================================
+Total params: 640644 (2.44 MB)
+Trainable params: 630708 (2.41 MB)
+Non-trainable params: 9936 (38.81 KB)
+_________________________________________________________________
+
+Parameter Summary:
+  Total Parameters:       640,644
+  Trainable Parameters:   630,708
+  Non-trainable Params:   9,936
+
+Estimated Model Sizes:
+  FP32 (4 bytes/param):   2.44 MB
+  INT8 (1 byte/param):    625.6 KB
+
+  WARNING: Model may exceed 512 KB target for Cortex-M7
+
+================================================================================
+STAGE 1: WARMUP TRAINING
+================================================================================
+
+Stage Duration: 1m 49s
+
+Training History:
+  Epochs Completed:       16
+  Final Train Loss:       0.5618
+  Final Train Accuracy:   0.9248
+  Final Val Loss:         2.5255
+  Final Val Accuracy:     0.0833
+  Best Val Loss:          2.5051
+  Best Val Accuracy:      0.0833
+
+================================================================================
+STAGE 2: FINE-TUNING
+================================================================================
+
+Stage Duration: 1m 56s
+
+Training History:
+  Epochs Completed:       20
+  Final Train Loss:       0.8837
+  Final Train Accuracy:   0.8014
+  Final Val Loss:         2.6479
+  Final Val Accuracy:     0.0833
+  Best Val Loss:          2.5291
+  Best Val Accuracy:      0.0833
+
+================================================================================
+EVALUATION: FP32 (.keras)
+================================================================================
+
+FP32 (.keras) Evaluation:
+  Test Accuracy:          8.33%
+  Classification Report:  results_mygardenbird_3_linux/3_mobilenetv3s_w0.75_mels64_drop05_rand100_warm70_mixup0.2_split80:10:10_linux/classification_report_fp32.txt
+
+================================================================================
+TFLITE CONVERSION (PTQ)
+================================================================================
+
+================================================================================
+EVALUATION: INT8 TFLite
+================================================================================
+
+INT8 TFLite Evaluation:
+  Test Accuracy:          8.33%
+  Classification Report:  results_mygardenbird_3_linux/3_mobilenetv3s_w0.75_mels64_drop05_rand100_warm70_mixup0.2_split80:10:10_linux/classification_report_int8.txt
+
+================================================================================
+FINAL RESULTS SUMMARY
+================================================================================
+
+================================================================================
+QUICK REFERENCE (Copy to spreadsheet)
+================================================================================
+Config: 3_mobilenetv3s_w0.75_drp0_mixup_warmup70_finetune20_lrcosine
+FP32: 8.33% | INT8: 8.33% | Drop: +0.00% | Time: 4m 45s
+
+--------------------------------------------------------------------------------
+DETAILED RESULTS
+--------------------------------------------------------------------------------
+
+Accuracy Results:
+  FP32 (.keras):            8.33%
+  INT8 (TFLite):            8.33%
+
+Accuracy Change (INT8 vs FP32):
+  Drop:                    +0.00% ✓ Excellent (no degradation)
+
+Model Sizes:
+  FP32 (.keras)       : 8.00 MB
+  INT8 (.tflite)      : 871.4 KB
+
+Training Metrics:
+  Best Warmup Val Acc:      8.33%
+  Best Finetune Val Acc:    8.33%
+  Final Train Acc:         80.14%
+  Final Val Acc:            8.33%
+  Train-Test Gap:         +71.81%
+  Train-Val Gap:          +71.81% ✗ Overfitting detected
+
+Execution Time:
+  Total Duration:         4m 45s
+
+Training completed: 2026-06-17 09:09:00
+
+================================================================================
+CSV FORMAT (for batch comparison)
+================================================================================
+model_type,width_mult,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb
+3_mobilenetv3s_w0.75,0.75,0.05,mixup,70,20,0.001,1e-05,cosine,8.33,8.33,0.00,8.33,71.81,285,871.4

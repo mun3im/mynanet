@@ -1,0 +1,4 @@
+Linux agent alive: Mon Feb  9 09:37:01 PM +08 2026
+Hostname: Nabila
+GPU: NVIDIA GeForce GTX 1080 Ti
+Checking for trigger: /home/muneim/Dropbox/Conda/mynanet/START_TRAINING_NOW.trigger

@@ -1,7 +1,0 @@
-Model,Training Dataset,Audio Duration,Task,Accuracy,Notes
-MatchBoxNet,Google Speech Commands,1s,Speech recognition,96.0%,Benchmark on GSC
-MatchBoxNet (transfer),MyGardenBird 12-class,3s,Bird classification,~80% (est.),Cross-domain + cross-duration transfer penalty
-MynaNet (1j),MyGardenBird 12-class,3s,Bird classification,94.91%,"Domain-specific, INT8 quantized"
-,,,,,
-Summary,,,,,
-MynaNet advantage,,,,+14.9 pp,Domain-specific vs transfer learning

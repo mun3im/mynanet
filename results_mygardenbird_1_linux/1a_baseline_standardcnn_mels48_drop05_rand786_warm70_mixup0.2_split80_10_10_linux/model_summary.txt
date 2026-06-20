@@ -1,0 +1,80 @@
+================================================================================
+MODEL ARCHITECTURE SUMMARY
+================================================================================
+
+Model: "MynaNet_BaselineCNN_1a"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input (InputLayer)          [(None, 48, 300, 1)]      0         
+                                                                 
+ initial_conv (Conv2D)       (None, 48, 300, 32)       288       
+                                                                 
+ initial_bn (BatchNormaliza  (None, 48, 300, 32)       128       
+ tion)                                                           
+                                                                 
+ initial_relu (ReLU)         (None, 48, 300, 32)       0         
+                                                                 
+ block1_conv (Conv2D)        (None, 48, 300, 64)       18432     
+                                                                 
+ block1_bn (BatchNormalizat  (None, 48, 300, 64)       256       
+ ion)                                                            
+                                                                 
+ block1_relu (ReLU)          (None, 48, 300, 64)       0         
+                                                                 
+ pool1 (MaxPooling2D)        (None, 24, 150, 64)       0         
+                                                                 
+ drop1 (Dropout)             (None, 24, 150, 64)       0         
+                                                                 
+ block2_conv (Conv2D)        (None, 24, 150, 128)      73728     
+                                                                 
+ block2_bn (BatchNormalizat  (None, 24, 150, 128)      512       
+ ion)                                                            
+                                                                 
+ block2_relu (ReLU)          (None, 24, 150, 128)      0         
+                                                                 
+ pool2 (MaxPooling2D)        (None, 12, 75, 128)       0         
+                                                                 
+ drop2 (Dropout)             (None, 12, 75, 128)       0         
+                                                                 
+ block3_conv (Conv2D)        (None, 12, 75, 256)       294912    
+                                                                 
+ block3_bn (BatchNormalizat  (None, 12, 75, 256)       1024      
+ ion)                                                            
+                                                                 
+ block3_relu (ReLU)          (None, 12, 75, 256)       0         
+                                                                 
+ pool3 (MaxPooling2D)        (None, 6, 37, 256)        0         
+                                                                 
+ drop3 (Dropout)             (None, 6, 37, 256)        0         
+                                                                 
+ block4_conv (Conv2D)        (None, 6, 37, 512)        1179648   
+                                                                 
+ block4_bn (BatchNormalizat  (None, 6, 37, 512)        2048      
+ ion)                                                            
+                                                                 
+ block4_relu (ReLU)          (None, 6, 37, 512)        0         
+                                                                 
+ pool4 (MaxPooling2D)        (None, 3, 18, 512)        0         
+                                                                 
+ drop4 (Dropout)             (None, 3, 18, 512)        0         
+                                                                 
+ global_pool (GlobalAverage  (None, 512)               0         
+ Pooling2D)                                                      
+                                                                 
+ fc1 (Dense)                 (None, 128)               65664     
+                                                                 
+ fc1_bn (BatchNormalization  (None, 128)               512       
+ )                                                               
+                                                                 
+ fc1_relu (ReLU)             (None, 128)               0         
+                                                                 
+ fc_drop (Dropout)           (None, 128)               0         
+                                                                 
+ output (Dense)              (None, 12)                1548      
+                                                                 
+=================================================================
+Total params: 1638700 (6.25 MB)
+Trainable params: 1636460 (6.24 MB)
+Non-trainable params: 2240 (8.75 KB)
+_________________________________________________________________

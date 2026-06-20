@@ -1,0 +1,2 @@
+dropout,augmentation,seed,test_accuracy,tflite_accuracy,precision,recall,f1_score,tflite_f1_score,directory
+0.3,none,786,78.78,79.22,0.7992,0.7878,0.786,0.7907,results_7d_tcn_64x300_ptq_chan64_drop30_rand786_warm50_linux

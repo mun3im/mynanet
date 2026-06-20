@@ -1,0 +1,535 @@
+
+▶▶▶  3a: MobileNetV3Small width×0.5
+  ↷ SKIP width=0.5 seed=42 (already exists)
+
+════════════════════════════════════════════════════
+  3_mobilenet_ablation  width_mult=0.5  seed=100
+════════════════════════════════════════════════════
+
+Loading from CSV splits:   0%|          | 0/7200 [00:00<?, ?file/s]
+Loading from CSV splits:   0%|          | 10/7200 [00:00<01:16, 93.47file/s]
+Loading from CSV splits:   0%|          | 28/7200 [00:00<00:51, 140.17file/s]
+Loading from CSV splits:   1%|          | 43/7200 [00:00<00:50, 141.37file/s]
+Loading from CSV splits:   1%|          | 58/7200 [00:00<00:55, 129.83file/s]
+Loading from CSV splits:   1%|          | 74/7200 [00:00<00:51, 138.90file/s]
+Loading from CSV splits:   1%|          | 89/7200 [00:00<00:55, 128.21file/s]
+Loading from CSV splits:   1%|▏         | 103/7200 [00:00<01:03, 111.65file/s]
+Loading from CSV splits:   2%|▏         | 115/7200 [00:00<01:07, 104.86file/s]
+Loading from CSV splits:   2%|▏         | 126/7200 [00:01<01:22, 85.94file/s] 
+Loading from CSV splits:   2%|▏         | 141/7200 [00:01<01:10, 100.37file/s]
+Loading from CSV splits:   2%|▏         | 152/7200 [00:01<01:15, 93.69file/s] 
+Loading from CSV splits:   2%|▏         | 166/7200 [00:01<01:07, 104.32file/s]
+Loading from CSV splits:   3%|▎         | 193/7200 [00:01<00:48, 145.80file/s]
+Loading from CSV splits:   3%|▎         | 211/7200 [00:01<00:46, 151.92file/s]
+Loading from CSV splits:   3%|▎         | 232/7200 [00:01<00:42, 165.38file/s]
+Loading from CSV splits:   4%|▎         | 258/7200 [00:01<00:36, 190.93file/s]
+Loading from CSV splits:   4%|▍         | 286/7200 [00:02<00:32, 214.38file/s]
+Loading from CSV splits:   4%|▍         | 314/7200 [00:02<00:29, 232.29file/s]
+Loading from CSV splits:   5%|▍         | 338/7200 [00:02<00:30, 226.92file/s]
+Loading from CSV splits:   5%|▌         | 362/7200 [00:02<00:34, 197.58file/s]
+Loading from CSV splits:   5%|▌         | 383/7200 [00:02<00:37, 183.66file/s]
+Loading from CSV splits:   6%|▌         | 403/7200 [00:02<00:36, 184.67file/s]
+Loading from CSV splits:   6%|▌         | 424/7200 [00:02<00:35, 191.11file/s]
+Loading from CSV splits:   6%|▌         | 448/7200 [00:02<00:33, 203.66file/s]
+Loading from CSV splits:   7%|▋         | 476/7200 [00:02<00:30, 222.82file/s]
+Loading from CSV splits:   7%|▋         | 502/7200 [00:03<00:29, 230.01file/s]
+Loading from CSV splits:   7%|▋         | 526/7200 [00:03<00:41, 159.40file/s]
+Loading from CSV splits:   8%|▊         | 546/7200 [00:03<00:45, 145.06file/s]
+Loading from CSV splits:   8%|▊         | 565/7200 [00:03<00:44, 149.24file/s]
+Loading from CSV splits:   8%|▊         | 582/7200 [00:03<01:09, 95.38file/s] 
+Loading from CSV splits:   8%|▊         | 596/7200 [00:04<01:17, 84.86file/s]
+Loading from CSV splits:   9%|▊         | 615/7200 [00:04<01:04, 102.10file/s]
+Loading from CSV splits:   9%|▉         | 640/7200 [00:04<00:51, 126.87file/s]
+Loading from CSV splits:   9%|▉         | 656/7200 [00:04<01:03, 103.17file/s]
+Loading from CSV splits:   9%|▉         | 683/7200 [00:04<00:48, 133.67file/s]
+Loading from CSV splits:  10%|▉         | 701/7200 [00:05<00:58, 110.75file/s]
+Loading from CSV splits:  10%|▉         | 718/7200 [00:05<00:53, 121.00file/s]
+Loading from CSV splits:  10%|█         | 741/7200 [00:05<00:45, 143.29file/s]
+Loading from CSV splits:  11%|█         | 760/7200 [00:05<00:42, 153.08file/s]
+Loading from CSV splits:  11%|█         | 778/7200 [00:05<00:48, 133.41file/s]
+Loading from CSV splits:  11%|█         | 794/7200 [00:05<00:54, 118.02file/s]
+Loading from CSV splits:  11%|█▏        | 820/7200 [00:05<00:43, 148.05file/s]
+Loading from CSV splits:  12%|█▏        | 846/7200 [00:05<00:36, 173.89file/s]
+Loading from CSV splits:  12%|█▏        | 866/7200 [00:06<00:39, 159.55file/s]
+Loading from CSV splits:  12%|█▏        | 884/7200 [00:06<00:46, 135.04file/s]
+Loading from CSV splits:  13%|█▎        | 912/7200 [00:06<00:37, 166.52file/s]
+Loading from CSV splits:  13%|█▎        | 932/7200 [00:06<00:36, 173.51file/s]
+Loading from CSV splits:  13%|█▎        | 952/7200 [00:06<00:40, 152.80file/s]
+Loading from CSV splits:  13%|█▎        | 969/7200 [00:06<00:52, 118.26file/s]
+Loading from CSV splits:  14%|█▎        | 983/7200 [00:07<01:03, 98.52file/s] 
+Loading from CSV splits:  14%|█▍        | 1001/7200 [00:07<00:54, 113.66file/s]
+Loading from CSV splits:  14%|█▍        | 1024/7200 [00:07<00:45, 135.88file/s]
+Loading from CSV splits:  15%|█▍        | 1050/7200 [00:07<00:37, 164.24file/s]
+Loading from CSV splits:  15%|█▍        | 1069/7200 [00:07<00:41, 146.86file/s]
+Loading from CSV splits:  15%|█▌        | 1086/7200 [00:07<00:46, 130.33file/s]
+Loading from CSV splits:  15%|█▌        | 1103/7200 [00:07<00:44, 135.96file/s]
+Loading from CSV splits:  16%|█▌        | 1118/7200 [00:08<00:53, 114.29file/s]
+Loading from CSV splits:  16%|█▌        | 1146/7200 [00:08<00:41, 147.62file/s]
+Loading from CSV splits:  16%|█▋        | 1171/7200 [00:08<00:35, 170.87file/s]
+Loading from CSV splits:  17%|█▋        | 1199/7200 [00:08<00:30, 196.44file/s]
+Loading from CSV splits:  17%|█▋        | 1223/7200 [00:08<00:28, 207.24file/s]
+Loading from CSV splits:  17%|█▋        | 1251/7200 [00:08<00:26, 225.08file/s]
+Loading from CSV splits:  18%|█▊        | 1276/7200 [00:08<00:25, 230.81file/s]
+Loading from CSV splits:  18%|█▊        | 1303/7200 [00:08<00:24, 240.81file/s]
+Loading from CSV splits:  18%|█▊        | 1329/7200 [00:08<00:23, 245.51file/s]
+Loading from CSV splits:  19%|█▉        | 1358/7200 [00:08<00:22, 257.33file/s]
+Loading from CSV splits:  19%|█▉        | 1385/7200 [00:09<00:22, 259.00file/s]
+Loading from CSV splits:  20%|█▉        | 1412/7200 [00:09<00:23, 244.78file/s]
+Loading from CSV splits:  20%|█▉        | 1437/7200 [00:09<00:24, 234.17file/s]
+Loading from CSV splits:  20%|██        | 1461/7200 [00:09<00:24, 235.54file/s]
+Loading from CSV splits:  21%|██        | 1485/7200 [00:09<00:44, 127.28file/s]
+Loading from CSV splits:  21%|██        | 1504/7200 [00:10<00:57, 99.06file/s] 
+Loading from CSV splits:  21%|██        | 1519/7200 [00:10<01:03, 89.17file/s]
+Loading from CSV splits:  21%|██▏       | 1532/7200 [00:10<01:05, 86.52file/s]
+Loading from CSV splits:  21%|██▏       | 1543/7200 [00:10<01:02, 90.18file/s]
+Loading from CSV splits:  22%|██▏       | 1569/7200 [00:10<00:45, 122.68file/s]
+Loading from CSV splits:  22%|██▏       | 1595/7200 [00:10<00:37, 151.23file/s]
+Loading from CSV splits:  23%|██▎       | 1622/7200 [00:10<00:31, 178.07file/s]
+Loading from CSV splits:  23%|██▎       | 1645/7200 [00:11<00:29, 189.45file/s]
+Loading from CSV splits:  23%|██▎       | 1667/7200 [00:11<00:34, 162.69file/s]
+Loading from CSV splits:  23%|██▎       | 1690/7200 [00:11<00:31, 177.44file/s]
+Loading from CSV splits:  24%|██▍       | 1710/7200 [00:11<00:31, 176.08file/s]
+Loading from CSV splits:  24%|██▍       | 1729/7200 [00:11<00:30, 178.20file/s]
+Loading from CSV splits:  24%|██▍       | 1751/7200 [00:11<00:29, 186.85file/s]
+Loading from CSV splits:  25%|██▍       | 1777/7200 [00:11<00:26, 205.61file/s]
+Loading from CSV splits:  25%|██▌       | 1800/7200 [00:11<00:25, 209.90file/s]
+Loading from CSV splits:  25%|██▌       | 1825/7200 [00:11<00:24, 220.03file/s]
+Loading from CSV splits:  26%|██▌       | 1851/7200 [00:12<00:23, 229.73file/s]
+Loading from CSV splits:  26%|██▌       | 1875/7200 [00:12<00:31, 168.73file/s]
+Loading from CSV splits:  26%|██▋       | 1895/7200 [00:12<00:37, 140.72file/s]
+Loading from CSV splits:  27%|██▋       | 1912/7200 [00:12<00:39, 133.73file/s]
+Loading from CSV splits:  27%|██▋       | 1932/7200 [00:12<00:35, 147.65file/s]
+Loading from CSV splits:  27%|██▋       | 1949/7200 [00:12<00:41, 125.54file/s]
+Loading from CSV splits:  27%|██▋       | 1975/7200 [00:13<00:33, 154.21file/s]
+Loading from CSV splits:  28%|██▊       | 2001/7200 [00:13<00:29, 177.83file/s]
+Loading from CSV splits:  28%|██▊       | 2027/7200 [00:13<00:26, 197.75file/s]
+Loading from CSV splits:  28%|██▊       | 2052/7200 [00:13<00:24, 210.39file/s]
+Loading from CSV splits:  29%|██▉       | 2075/7200 [00:13<00:31, 161.24file/s]
+Loading from CSV splits:  29%|██▉       | 2094/7200 [00:13<00:38, 131.27file/s]
+Loading from CSV splits:  29%|██▉       | 2110/7200 [00:13<00:44, 115.09file/s]
+Loading from CSV splits:  30%|██▉       | 2124/7200 [00:14<00:50, 101.42file/s]
+Loading from CSV splits:  30%|██▉       | 2136/7200 [00:14<00:52, 96.35file/s] 
+Loading from CSV splits:  30%|██▉       | 2147/7200 [00:14<00:51, 98.77file/s]
+Loading from CSV splits:  30%|██▉       | 2158/7200 [00:14<00:57, 87.09file/s]
+Loading from CSV splits:  30%|███       | 2168/7200 [00:14<01:01, 82.27file/s]
+Loading from CSV splits:  30%|███       | 2189/7200 [00:14<00:45, 109.22file/s]
+Loading from CSV splits:  31%|███       | 2202/7200 [00:14<00:48, 102.77file/s]
+Loading from CSV splits:  31%|███       | 2216/7200 [00:15<00:45, 110.65file/s]
+Loading from CSV splits:  31%|███       | 2240/7200 [00:15<00:34, 142.26file/s]
+Loading from CSV splits:  31%|███▏      | 2261/7200 [00:15<00:30, 159.93file/s]
+Loading from CSV splits:  32%|███▏      | 2282/7200 [00:15<00:28, 171.68file/s]
+Loading from CSV splits:  32%|███▏      | 2306/7200 [00:15<00:26, 188.11file/s]
+Loading from CSV splits:  32%|███▏      | 2326/7200 [00:15<00:35, 136.39file/s]
+Loading from CSV splits:  33%|███▎      | 2343/7200 [00:15<00:41, 116.59file/s]
+Loading from CSV splits:  33%|███▎      | 2357/7200 [00:16<00:49, 97.14file/s] 
+Loading from CSV splits:  33%|███▎      | 2369/7200 [00:16<00:56, 86.12file/s]
+Loading from CSV splits:  33%|███▎      | 2379/7200 [00:16<00:57, 83.26file/s]
+Loading from CSV splits:  33%|███▎      | 2389/7200 [00:16<00:59, 80.63file/s]
+Loading from CSV splits:  33%|███▎      | 2398/7200 [00:16<00:58, 81.90file/s]
+Loading from CSV splits:  33%|███▎      | 2407/7200 [00:16<01:04, 74.69file/s]
+Loading from CSV splits:  34%|███▎      | 2415/7200 [00:17<01:09, 68.88file/s]
+Loading from CSV splits:  34%|███▎      | 2423/7200 [00:17<01:13, 65.32file/s]
+Loading from CSV splits:  34%|███▍      | 2433/7200 [00:17<01:06, 71.28file/s]
+Loading from CSV splits:  34%|███▍      | 2441/7200 [00:17<01:06, 71.28file/s]
+Loading from CSV splits:  34%|███▍      | 2450/7200 [00:17<01:04, 73.82file/s]
+Loading from CSV splits:  34%|███▍      | 2459/7200 [00:17<01:02, 75.46file/s]
+Loading from CSV splits:  34%|███▍      | 2468/7200 [00:17<01:00, 78.06file/s]
+Loading from CSV splits:  34%|███▍      | 2476/7200 [00:17<01:00, 77.95file/s]
+Loading from CSV splits:  34%|███▍      | 2484/7200 [00:17<01:01, 77.02file/s]
+Loading from CSV splits:  35%|███▍      | 2492/7200 [00:18<01:01, 76.16file/s]
+Loading from CSV splits:  35%|███▍      | 2501/7200 [00:18<00:59, 78.51file/s]
+Loading from CSV splits:  35%|███▍      | 2509/7200 [00:18<00:59, 78.26file/s]
+Loading from CSV splits:  35%|███▍      | 2517/7200 [00:18<00:59, 78.17file/s]
+Loading from CSV splits:  35%|███▌      | 2525/7200 [00:18<01:00, 77.08file/s]
+Loading from CSV splits:  35%|███▌      | 2533/7200 [00:18<01:01, 75.30file/s]
+Loading from CSV splits:  35%|███▌      | 2541/7200 [00:18<01:01, 75.36file/s]
+Loading from CSV splits:  35%|███▌      | 2549/7200 [00:18<01:01, 76.24file/s]
+Loading from CSV splits:  36%|███▌      | 2557/7200 [00:18<01:03, 73.11file/s]
+Loading from CSV splits:  36%|███▌      | 2565/7200 [00:19<01:04, 72.00file/s]
+Loading from CSV splits:  36%|███▌      | 2574/7200 [00:19<01:01, 74.69file/s]
+Loading from CSV splits:  36%|███▌      | 2582/7200 [00:19<01:00, 75.98file/s]
+Loading from CSV splits:  36%|███▌      | 2590/7200 [00:19<01:03, 73.01file/s]
+Loading from CSV splits:  36%|███▌      | 2598/7200 [00:19<01:02, 73.50file/s]
+Loading from CSV splits:  36%|███▌      | 2606/7200 [00:19<01:03, 72.83file/s]
+Loading from CSV splits:  36%|███▋      | 2615/7200 [00:19<01:00, 75.34file/s]
+Loading from CSV splits:  36%|███▋      | 2624/7200 [00:19<00:59, 77.50file/s]
+Loading from CSV splits:  37%|███▋      | 2634/7200 [00:19<00:56, 81.22file/s]
+Loading from CSV splits:  37%|███▋      | 2643/7200 [00:20<01:01, 74.43file/s]
+Loading from CSV splits:  37%|███▋      | 2651/7200 [00:20<01:01, 74.49file/s]
+Loading from CSV splits:  37%|███▋      | 2671/7200 [00:20<00:42, 107.81file/s]
+Loading from CSV splits:  37%|███▋      | 2695/7200 [00:20<00:31, 143.66file/s]
+Loading from CSV splits:  38%|███▊      | 2719/7200 [00:20<00:26, 167.85file/s]
+Loading from CSV splits:  38%|███▊      | 2742/7200 [00:20<00:24, 184.33file/s]
+Loading from CSV splits:  38%|███▊      | 2766/7200 [00:20<00:22, 199.17file/s]
+Loading from CSV splits:  39%|███▊      | 2789/7200 [00:20<00:21, 206.16file/s]
+Loading from CSV splits:  39%|███▉      | 2815/7200 [00:20<00:19, 219.78file/s]
+Loading from CSV splits:  39%|███▉      | 2840/7200 [00:20<00:19, 227.16file/s]
+Loading from CSV splits:  40%|███▉      | 2868/7200 [00:21<00:17, 241.36file/s]
+Loading from CSV splits:  40%|████      | 2893/7200 [00:21<00:17, 242.57file/s]
+Loading from CSV splits:  41%|████      | 2918/7200 [00:21<00:26, 160.88file/s]
+Loading from CSV splits:  41%|████      | 2938/7200 [00:21<00:35, 121.07file/s]
+Loading from CSV splits:  41%|████      | 2954/7200 [00:21<00:39, 108.32file/s]
+Loading from CSV splits:  41%|████      | 2968/7200 [00:22<00:49, 86.13file/s] 
+Loading from CSV splits:  41%|████▏     | 2979/7200 [00:22<00:50, 83.92file/s]
+Loading from CSV splits:  42%|████▏     | 2989/7200 [00:22<00:51, 82.35file/s]
+Loading from CSV splits:  42%|████▏     | 2999/7200 [00:22<00:55, 76.32file/s]
+Loading from CSV splits:  42%|████▏     | 3011/7200 [00:22<00:49, 84.76file/s]
+Loading from CSV splits:  42%|████▏     | 3035/7200 [00:22<00:35, 118.87file/s]
+Loading from CSV splits:  42%|████▏     | 3054/7200 [00:22<00:30, 134.93file/s]
+Loading from CSV splits:  43%|████▎     | 3080/7200 [00:23<00:24, 165.32file/s]
+Loading from CSV splits:  43%|████▎     | 3107/7200 [00:23<00:21, 190.93file/s]
+Loading from CSV splits:  44%|████▎     | 3136/7200 [00:23<00:18, 215.39file/s]
+Loading from CSV splits:  44%|████▍     | 3161/7200 [00:23<00:17, 224.98file/s]
+Loading from CSV splits:  44%|████▍     | 3187/7200 [00:23<00:17, 232.95file/s]
+Loading from CSV splits:  45%|████▍     | 3211/7200 [00:23<00:17, 229.68file/s]
+Loading from CSV splits:  45%|████▍     | 3237/7200 [00:23<00:16, 236.64file/s]
+Loading from CSV splits:  45%|████▌     | 3265/7200 [00:23<00:15, 246.04file/s]
+Loading from CSV splits:  46%|████▌     | 3290/7200 [00:23<00:18, 215.93file/s]
+Loading from CSV splits:  46%|████▌     | 3313/7200 [00:24<00:19, 203.29file/s]
+Loading from CSV splits:  46%|████▋     | 3339/7200 [00:24<00:17, 217.45file/s]
+Loading from CSV splits:  47%|████▋     | 3362/7200 [00:24<00:17, 213.35file/s]
+Loading from CSV splits:  47%|████▋     | 3389/7200 [00:24<00:16, 226.68file/s]
+Loading from CSV splits:  47%|████▋     | 3413/7200 [00:24<00:16, 228.70file/s]
+Loading from CSV splits:  48%|████▊     | 3437/7200 [00:24<00:16, 227.09file/s]
+Loading from CSV splits:  48%|████▊     | 3460/7200 [00:24<00:18, 199.37file/s]
+Loading from CSV splits:  48%|████▊     | 3484/7200 [00:24<00:17, 209.26file/s]
+Loading from CSV splits:  49%|████▊     | 3508/7200 [00:24<00:17, 216.27file/s]
+Loading from CSV splits:  49%|████▉     | 3534/7200 [00:25<00:16, 225.72file/s]
+Loading from CSV splits:  49%|████▉     | 3557/7200 [00:25<00:17, 207.31file/s]
+Loading from CSV splits:  50%|████▉     | 3581/7200 [00:25<00:16, 215.92file/s]
+Loading from CSV splits:  50%|█████     | 3605/7200 [00:25<00:16, 221.29file/s]
+Loading from CSV splits:  50%|█████     | 3628/7200 [00:25<00:16, 213.96file/s]
+Loading from CSV splits:  51%|█████     | 3650/7200 [00:25<00:17, 203.20file/s]
+Loading from CSV splits:  51%|█████     | 3678/7200 [00:25<00:15, 222.58file/s]
+Loading from CSV splits:  51%|█████▏    | 3703/7200 [00:25<00:15, 230.12file/s]
+Loading from CSV splits:  52%|█████▏    | 3730/7200 [00:25<00:14, 239.34file/s]
+Loading from CSV splits:  52%|█████▏    | 3755/7200 [00:26<00:14, 237.90file/s]
+Loading from CSV splits:  52%|█████▏    | 3779/7200 [00:26<00:15, 215.93file/s]
+Loading from CSV splits:  53%|█████▎    | 3802/7200 [00:26<00:16, 200.08file/s]
+Loading from CSV splits:  53%|█████▎    | 3823/7200 [00:26<00:19, 171.52file/s]
+Loading from CSV splits:  53%|█████▎    | 3842/7200 [00:26<00:19, 171.70file/s]
+Loading from CSV splits:  54%|█████▎    | 3866/7200 [00:26<00:17, 187.30file/s]
+Loading from CSV splits:  54%|█████▍    | 3893/7200 [00:26<00:16, 206.59file/s]
+Loading from CSV splits:  54%|█████▍    | 3920/7200 [00:26<00:14, 222.85file/s]
+Loading from CSV splits:  55%|█████▍    | 3948/7200 [00:27<00:13, 237.24file/s]
+Loading from CSV splits:  55%|█████▌    | 3973/7200 [00:27<00:15, 212.81file/s]
+Loading from CSV splits:  56%|█████▌    | 3996/7200 [00:27<00:17, 184.03file/s]
+Loading from CSV splits:  56%|█████▌    | 4016/7200 [00:27<00:19, 167.17file/s]
+Loading from CSV splits:  56%|█████▌    | 4042/7200 [00:27<00:16, 187.89file/s]
+Loading from CSV splits:  56%|█████▋    | 4068/7200 [00:27<00:15, 204.80file/s]
+Loading from CSV splits:  57%|█████▋    | 4095/7200 [00:27<00:14, 221.12file/s]
+Loading from CSV splits:  57%|█████▋    | 4121/7200 [00:27<00:13, 231.16file/s]
+Loading from CSV splits:  58%|█████▊    | 4145/7200 [00:27<00:13, 221.64file/s]
+Loading from CSV splits:  58%|█████▊    | 4171/7200 [00:28<00:13, 230.39file/s]
+Loading from CSV splits:  58%|█████▊    | 4197/7200 [00:28<00:12, 238.11file/s]
+Loading from CSV splits:  59%|█████▊    | 4225/7200 [00:28<00:11, 248.73file/s]
+Loading from CSV splits:  59%|█████▉    | 4252/7200 [00:28<00:11, 252.51file/s]
+Loading from CSV splits:  59%|█████▉    | 4278/7200 [00:28<00:14, 196.83file/s]
+Loading from CSV splits:  60%|█████▉    | 4300/7200 [00:28<00:21, 137.60file/s]
+Loading from CSV splits:  60%|█████▉    | 4318/7200 [00:28<00:19, 145.15file/s]
+Loading from CSV splits:  60%|██████    | 4345/7200 [00:29<00:16, 170.62file/s]
+Loading from CSV splits:  61%|██████    | 4373/7200 [00:29<00:14, 195.23file/s]
+Loading from CSV splits:  61%|██████    | 4400/7200 [00:29<00:13, 213.13file/s]
+Loading from CSV splits:  61%|██████▏   | 4424/7200 [00:29<00:13, 198.59file/s]
+Loading from CSV splits:  62%|██████▏   | 4446/7200 [00:29<00:20, 135.66file/s]
+Loading from CSV splits:  62%|██████▏   | 4464/7200 [00:30<00:25, 105.48file/s]
+Loading from CSV splits:  62%|██████▏   | 4485/7200 [00:30<00:22, 122.71file/s]
+Loading from CSV splits:  63%|██████▎   | 4502/7200 [00:30<00:22, 120.75file/s]
+Loading from CSV splits:  63%|██████▎   | 4517/7200 [00:30<00:21, 123.93file/s]
+Loading from CSV splits:  63%|██████▎   | 4537/7200 [00:30<00:19, 139.52file/s]
+Loading from CSV splits:  63%|██████▎   | 4553/7200 [00:30<00:18, 143.28file/s]
+Loading from CSV splits:  64%|██████▎   | 4574/7200 [00:30<00:16, 157.67file/s]
+Loading from CSV splits:  64%|██████▍   | 4591/7200 [00:30<00:16, 154.56file/s]
+Loading from CSV splits:  64%|██████▍   | 4609/7200 [00:30<00:16, 158.98file/s]
+Loading from CSV splits:  64%|██████▍   | 4626/7200 [00:31<00:18, 139.29file/s]
+Loading from CSV splits:  64%|██████▍   | 4641/7200 [00:31<00:18, 138.53file/s]
+Loading from CSV splits:  65%|██████▍   | 4656/7200 [00:31<00:19, 127.72file/s]
+Loading from CSV splits:  65%|██████▍   | 4672/7200 [00:31<00:18, 135.20file/s]
+Loading from CSV splits:  65%|██████▌   | 4687/7200 [00:31<00:18, 133.91file/s]
+Loading from CSV splits:  65%|██████▌   | 4702/7200 [00:31<00:18, 137.18file/s]
+Loading from CSV splits:  66%|██████▌   | 4716/7200 [00:31<00:23, 106.28file/s]
+Loading from CSV splits:  66%|██████▌   | 4728/7200 [00:32<00:31, 78.97file/s] 
+Loading from CSV splits:  66%|██████▌   | 4738/7200 [00:32<00:34, 70.52file/s]
+Loading from CSV splits:  66%|██████▌   | 4747/7200 [00:32<00:36, 66.35file/s]
+Loading from CSV splits:  66%|██████▌   | 4757/7200 [00:32<00:33, 72.84file/s]
+Loading from CSV splits:  66%|██████▋   | 4770/7200 [00:32<00:28, 84.53file/s]
+Loading from CSV splits:  66%|██████▋   | 4783/7200 [00:32<00:25, 93.29file/s]
+Loading from CSV splits:  67%|██████▋   | 4794/7200 [00:32<00:26, 91.33file/s]
+Loading from CSV splits:  67%|██████▋   | 4804/7200 [00:33<00:28, 85.01file/s]
+Loading from CSV splits:  67%|██████▋   | 4813/7200 [00:33<00:28, 82.76file/s]
+Loading from CSV splits:  67%|██████▋   | 4826/7200 [00:33<00:25, 93.63file/s]
+Loading from CSV splits:  67%|██████▋   | 4851/7200 [00:33<00:17, 133.81file/s]
+Loading from CSV splits:  68%|██████▊   | 4868/7200 [00:33<00:17, 132.34file/s]
+Loading from CSV splits:  68%|██████▊   | 4882/7200 [00:33<00:25, 92.33file/s] 
+Loading from CSV splits:  68%|██████▊   | 4894/7200 [00:33<00:26, 88.21file/s]
+Loading from CSV splits:  68%|██████▊   | 4905/7200 [00:34<00:25, 90.02file/s]
+Loading from CSV splits:  68%|██████▊   | 4916/7200 [00:34<00:27, 81.75file/s]
+Loading from CSV splits:  68%|██████▊   | 4925/7200 [00:34<00:27, 81.80file/s]
+Loading from CSV splits:  69%|██████▊   | 4934/7200 [00:34<00:28, 79.54file/s]
+Loading from CSV splits:  69%|██████▊   | 4943/7200 [00:34<00:29, 75.77file/s]
+Loading from CSV splits:  69%|██████▉   | 4953/7200 [00:34<00:27, 81.34file/s]
+Loading from CSV splits:  69%|██████▉   | 4967/7200 [00:34<00:23, 93.49file/s]
+Loading from CSV splits:  69%|██████▉   | 4981/7200 [00:34<00:21, 105.38file/s]
+Loading from CSV splits:  69%|██████▉   | 4997/7200 [00:35<00:18, 119.29file/s]
+Loading from CSV splits:  70%|██████▉   | 5010/7200 [00:35<00:23, 94.88file/s] 
+Loading from CSV splits:  70%|██████▉   | 5021/7200 [00:35<00:25, 85.23file/s]
+Loading from CSV splits:  70%|██████▉   | 5031/7200 [00:35<00:26, 83.08file/s]
+Loading from CSV splits:  70%|███████   | 5040/7200 [00:35<00:27, 77.64file/s]
+Loading from CSV splits:  70%|███████   | 5049/7200 [00:35<00:29, 71.97file/s]
+Loading from CSV splits:  70%|███████   | 5058/7200 [00:35<00:28, 74.68file/s]
+Loading from CSV splits:  70%|███████   | 5066/7200 [00:36<00:29, 72.06file/s]
+Loading from CSV splits:  70%|███████   | 5074/7200 [00:36<00:30, 69.63file/s]
+Loading from CSV splits:  71%|███████   | 5082/7200 [00:36<00:32, 65.68file/s]
+Loading from CSV splits:  71%|███████   | 5089/7200 [00:36<00:32, 65.30file/s]
+Loading from CSV splits:  71%|███████   | 5096/7200 [00:36<00:33, 62.36file/s]
+Loading from CSV splits:  71%|███████   | 5103/7200 [00:36<00:36, 57.30file/s]
+Loading from CSV splits:  71%|███████   | 5109/7200 [00:36<00:39, 52.91file/s]
+Loading from CSV splits:  71%|███████   | 5115/7200 [00:36<00:40, 51.74file/s]
+Loading from CSV splits:  71%|███████   | 5121/7200 [00:37<00:38, 53.31file/s]
+Loading from CSV splits:  71%|███████   | 5127/7200 [00:37<00:38, 53.64file/s]
+Loading from CSV splits:  72%|███████▏  | 5151/7200 [00:37<00:20, 101.81file/s]
+Loading from CSV splits:  72%|███████▏  | 5170/7200 [00:37<00:16, 125.69file/s]
+Loading from CSV splits:  72%|███████▏  | 5184/7200 [00:37<00:21, 91.70file/s] 
+Loading from CSV splits:  72%|███████▏  | 5195/7200 [00:37<00:23, 84.49file/s]
+Loading from CSV splits:  72%|███████▏  | 5205/7200 [00:37<00:25, 77.38file/s]
+Loading from CSV splits:  72%|███████▏  | 5214/7200 [00:38<00:25, 77.81file/s]
+Loading from CSV splits:  73%|███████▎  | 5223/7200 [00:38<00:25, 78.97file/s]
+Loading from CSV splits:  73%|███████▎  | 5232/7200 [00:38<00:27, 70.54file/s]
+Loading from CSV splits:  73%|███████▎  | 5240/7200 [00:38<00:28, 68.87file/s]
+Loading from CSV splits:  73%|███████▎  | 5248/7200 [00:38<00:32, 59.37file/s]
+Loading from CSV splits:  73%|███████▎  | 5255/7200 [00:38<00:40, 48.23file/s]
+Loading from CSV splits:  73%|███████▎  | 5261/7200 [00:38<00:39, 49.57file/s]
+Loading from CSV splits:  73%|███████▎  | 5278/7200 [00:39<00:25, 75.35file/s]
+Loading from CSV splits:  74%|███████▎  | 5300/7200 [00:39<00:17, 107.74file/s]
+Loading from CSV splits:  74%|███████▍  | 5317/7200 [00:39<00:15, 123.22file/s]
+Loading from CSV splits:  74%|███████▍  | 5333/7200 [00:39<00:14, 131.29file/s]
+Loading from CSV splits:  74%|███████▍  | 5348/7200 [00:39<00:17, 106.20file/s]
+Loading from CSV splits:  74%|███████▍  | 5361/7200 [00:39<00:19, 93.92file/s] 
+Loading from CSV splits:  75%|███████▍  | 5372/7200 [00:39<00:21, 86.68file/s]
+Loading from CSV splits:  75%|███████▍  | 5382/7200 [00:40<00:21, 84.40file/s]
+Loading from CSV splits:  75%|███████▍  | 5392/7200 [00:40<00:21, 84.01file/s]
+Loading from CSV splits:  75%|███████▌  | 5401/7200 [00:40<00:23, 75.14file/s]
+Loading from CSV splits:  75%|███████▌  | 5409/7200 [00:40<00:25, 71.36file/s]
+Loading from CSV splits:  75%|███████▌  | 5418/7200 [00:40<00:23, 75.54file/s]
+Loading from CSV splits:  75%|███████▌  | 5434/7200 [00:40<00:18, 96.25file/s]
+Loading from CSV splits:  76%|███████▌  | 5447/7200 [00:40<00:17, 102.81file/s]
+Loading from CSV splits:  76%|███████▌  | 5461/7200 [00:40<00:15, 112.07file/s]
+Loading from CSV splits:  76%|███████▌  | 5480/7200 [00:40<00:13, 130.90file/s]
+Loading from CSV splits:  76%|███████▋  | 5494/7200 [00:41<00:15, 110.12file/s]
+Loading from CSV splits:  76%|███████▋  | 5506/7200 [00:41<00:17, 96.57file/s] 
+Loading from CSV splits:  77%|███████▋  | 5517/7200 [00:41<00:19, 86.71file/s]
+Loading from CSV splits:  77%|███████▋  | 5527/7200 [00:41<00:21, 77.13file/s]
+Loading from CSV splits:  77%|███████▋  | 5536/7200 [00:41<00:23, 69.42file/s]
+Loading from CSV splits:  77%|███████▋  | 5547/7200 [00:41<00:21, 77.56file/s]
+Loading from CSV splits:  77%|███████▋  | 5566/7200 [00:42<00:16, 100.57file/s]
+Loading from CSV splits:  78%|███████▊  | 5585/7200 [00:42<00:13, 120.50file/s]
+Loading from CSV splits:  78%|███████▊  | 5599/7200 [00:42<00:12, 125.09file/s]
+Loading from CSV splits:  78%|███████▊  | 5620/7200 [00:42<00:10, 146.63file/s]
+Loading from CSV splits:  78%|███████▊  | 5638/7200 [00:42<00:10, 155.40file/s]
+Loading from CSV splits:  79%|███████▊  | 5655/7200 [00:42<00:10, 150.21file/s]
+Loading from CSV splits:  79%|███████▉  | 5671/7200 [00:42<00:11, 127.72file/s]
+Loading from CSV splits:  79%|███████▉  | 5685/7200 [00:42<00:14, 104.66file/s]
+Loading from CSV splits:  79%|███████▉  | 5698/7200 [00:43<00:13, 109.93file/s]
+Loading from CSV splits:  79%|███████▉  | 5713/7200 [00:43<00:12, 119.44file/s]
+Loading from CSV splits:  80%|███████▉  | 5730/7200 [00:43<00:11, 130.83file/s]
+Loading from CSV splits:  80%|███████▉  | 5745/7200 [00:43<00:10, 135.15file/s]
+Loading from CSV splits:  80%|████████  | 5760/7200 [00:43<00:12, 110.79file/s]
+Loading from CSV splits:  80%|████████  | 5773/7200 [00:43<00:13, 105.21file/s]
+Loading from CSV splits:  80%|████████  | 5785/7200 [00:43<00:13, 101.91file/s]
+Loading from CSV splits:  81%|████████  | 5802/7200 [00:43<00:11, 117.64file/s]
+Loading from CSV splits:  81%|████████  | 5818/7200 [00:44<00:10, 127.69file/s]
+Loading from CSV splits:  81%|████████  | 5835/7200 [00:44<00:09, 138.51file/s]
+Loading from CSV splits:  81%|████████▏ | 5853/7200 [00:44<00:09, 149.40file/s]
+Loading from CSV splits:  82%|████████▏ | 5871/7200 [00:44<00:08, 152.47file/s]
+Loading from CSV splits:  82%|████████▏ | 5887/7200 [00:44<00:10, 119.67file/s]
+Loading from CSV splits:  82%|████████▏ | 5903/7200 [00:44<00:10, 126.92file/s]
+Loading from CSV splits:  82%|████████▏ | 5918/7200 [00:44<00:09, 130.54file/s]
+Loading from CSV splits:  82%|████████▏ | 5932/7200 [00:44<00:10, 116.04file/s]
+Loading from CSV splits:  83%|████████▎ | 5945/7200 [00:45<00:11, 112.66file/s]
+Loading from CSV splits:  83%|████████▎ | 5960/7200 [00:45<00:10, 120.21file/s]
+Loading from CSV splits:  83%|████████▎ | 5975/7200 [00:45<00:09, 126.62file/s]
+Loading from CSV splits:  83%|████████▎ | 5989/7200 [00:45<00:11, 103.04file/s]
+Loading from CSV splits:  83%|████████▎ | 6001/7200 [00:45<00:12, 98.26file/s] 
+Loading from CSV splits:  84%|████████▎ | 6019/7200 [00:45<00:10, 116.88file/s]
+Loading from CSV splits:  84%|████████▍ | 6037/7200 [00:45<00:08, 132.18file/s]
+Loading from CSV splits:  84%|████████▍ | 6055/7200 [00:45<00:08, 138.78file/s]
+Loading from CSV splits:  84%|████████▍ | 6076/7200 [00:46<00:07, 155.17file/s]
+Loading from CSV splits:  85%|████████▍ | 6095/7200 [00:46<00:06, 164.10file/s]
+Loading from CSV splits:  85%|████████▍ | 6115/7200 [00:46<00:06, 173.72file/s]
+Loading from CSV splits:  85%|████████▌ | 6135/7200 [00:46<00:05, 179.06file/s]
+Loading from CSV splits:  85%|████████▌ | 6154/7200 [00:46<00:05, 178.45file/s]
+Loading from CSV splits:  86%|████████▌ | 6173/7200 [00:46<00:05, 181.51file/s]
+Loading from CSV splits:  86%|████████▌ | 6192/7200 [00:46<00:05, 174.16file/s]
+Loading from CSV splits:  86%|████████▋ | 6213/7200 [00:46<00:05, 182.75file/s]
+Loading from CSV splits:  87%|████████▋ | 6232/7200 [00:46<00:05, 181.14file/s]
+Loading from CSV splits:  87%|████████▋ | 6252/7200 [00:46<00:05, 184.40file/s]
+Loading from CSV splits:  87%|████████▋ | 6271/7200 [00:47<00:05, 169.99file/s]
+Loading from CSV splits:  87%|████████▋ | 6289/7200 [00:47<00:05, 167.46file/s]
+Loading from CSV splits:  88%|████████▊ | 6309/7200 [00:47<00:05, 173.36file/s]
+Loading from CSV splits:  88%|████████▊ | 6328/7200 [00:47<00:04, 177.69file/s]
+Loading from CSV splits:  88%|████████▊ | 6347/7200 [00:47<00:04, 179.66file/s]
+Loading from CSV splits:  88%|████████▊ | 6366/7200 [00:47<00:04, 179.21file/s]
+Loading from CSV splits:  89%|████████▊ | 6384/7200 [00:47<00:05, 152.18file/s]
+Loading from CSV splits:  89%|████████▉ | 6401/7200 [00:47<00:05, 155.80file/s]
+Loading from CSV splits:  89%|████████▉ | 6421/7200 [00:48<00:04, 166.33file/s]
+Loading from CSV splits:  89%|████████▉ | 6439/7200 [00:48<00:04, 158.62file/s]
+Loading from CSV splits:  90%|████████▉ | 6458/7200 [00:48<00:04, 165.35file/s]
+Loading from CSV splits:  90%|████████▉ | 6477/7200 [00:48<00:04, 171.84file/s]
+Loading from CSV splits:  90%|█████████ | 6497/7200 [00:48<00:03, 179.09file/s]
+Loading from CSV splits:  90%|█████████ | 6516/7200 [00:48<00:03, 181.27file/s]
+Loading from CSV splits:  91%|█████████ | 6535/7200 [00:48<00:03, 172.28file/s]
+Loading from CSV splits:  91%|█████████ | 6553/7200 [00:48<00:04, 157.71file/s]
+Loading from CSV splits:  91%|█████████▏| 6570/7200 [00:49<00:05, 124.40file/s]
+Loading from CSV splits:  91%|█████████▏| 6584/7200 [00:49<00:05, 120.30file/s]
+Loading from CSV splits:  92%|█████████▏| 6601/7200 [00:49<00:04, 131.52file/s]
+Loading from CSV splits:  92%|█████████▏| 6623/7200 [00:49<00:03, 153.07file/s]
+Loading from CSV splits:  92%|█████████▏| 6643/7200 [00:49<00:03, 164.38file/s]
+Loading from CSV splits:  93%|█████████▎| 6661/7200 [00:49<00:03, 168.53file/s]
+Loading from CSV splits:  93%|█████████▎| 6679/7200 [00:49<00:03, 159.70file/s]
+Loading from CSV splits:  93%|█████████▎| 6697/7200 [00:49<00:03, 165.04file/s]
+Loading from CSV splits:  93%|█████████▎| 6718/7200 [00:49<00:02, 176.29file/s]
+Loading from CSV splits:  94%|█████████▎| 6737/7200 [00:49<00:02, 179.54file/s]
+Loading from CSV splits:  94%|█████████▍| 6756/7200 [00:50<00:02, 169.49file/s]
+Loading from CSV splits:  94%|█████████▍| 6774/7200 [00:50<00:02, 162.38file/s]
+Loading from CSV splits:  94%|█████████▍| 6793/7200 [00:50<00:02, 167.83file/s]
+Loading from CSV splits:  95%|█████████▍| 6812/7200 [00:50<00:02, 171.68file/s]
+Loading from CSV splits:  95%|█████████▍| 6833/7200 [00:50<00:02, 181.91file/s]
+Loading from CSV splits:  95%|█████████▌| 6852/7200 [00:50<00:01, 178.23file/s]
+Loading from CSV splits:  95%|█████████▌| 6870/7200 [00:50<00:01, 178.08file/s]
+Loading from CSV splits:  96%|█████████▌| 6889/7200 [00:50<00:01, 180.96file/s]
+Loading from CSV splits:  96%|█████████▌| 6909/7200 [00:50<00:01, 181.62file/s]
+Loading from CSV splits:  96%|█████████▋| 6931/7200 [00:51<00:01, 188.75file/s]
+Loading from CSV splits:  97%|█████████▋| 6950/7200 [00:51<00:01, 171.87file/s]
+Loading from CSV splits:  97%|█████████▋| 6968/7200 [00:51<00:01, 155.92file/s]
+Loading from CSV splits:  97%|█████████▋| 6985/7200 [00:51<00:01, 141.41file/s]
+Loading from CSV splits:  97%|█████████▋| 7000/7200 [00:51<00:01, 104.42file/s]
+Loading from CSV splits:  97%|█████████▋| 7013/7200 [00:51<00:02, 93.29file/s] 
+Loading from CSV splits:  98%|█████████▊| 7024/7200 [00:52<00:02, 87.15file/s]
+Loading from CSV splits:  98%|█████████▊| 7034/7200 [00:52<00:01, 84.92file/s]
+Loading from CSV splits:  98%|█████████▊| 7053/7200 [00:52<00:01, 107.44file/s]
+Loading from CSV splits:  98%|█████████▊| 7073/7200 [00:52<00:00, 128.45file/s]
+Loading from CSV splits:  98%|█████████▊| 7092/7200 [00:52<00:00, 142.83file/s]
+Loading from CSV splits:  99%|█████████▊| 7108/7200 [00:52<00:00, 146.57file/s]
+Loading from CSV splits:  99%|█████████▉| 7126/7200 [00:52<00:00, 154.88file/s]
+Loading from CSV splits:  99%|█████████▉| 7145/7200 [00:52<00:00, 163.22file/s]
+Loading from CSV splits:  99%|█████████▉| 7163/7200 [00:52<00:00, 167.07file/s]
+Loading from CSV splits: 100%|█████████▉| 7181/7200 [00:53<00:00, 170.02file/s]
+Loading from CSV splits: 100%|█████████▉| 7199/7200 [00:53<00:00, 171.61file/s]
+Loading from CSV splits: 100%|██████████| 7200/7200 [00:53<00:00, 135.49file/s]
+Traceback (most recent call last):
+  File "/home/muneim/Dropbox/Conda/mynanet/3_mobilenet_ablation.py", line 1497, in <module>
+    main()
+  File "/home/muneim/Dropbox/Conda/mynanet/3_mobilenet_ablation.py", line 1260, in main
+    model = create_mobilenetv3s(num_classes, config['input_shape'],
+  File "/home/muneim/Dropbox/Conda/mynanet/3_mobilenet_ablation.py", line 796, in create_mobilenetv3s
+    backbone = tf_keras.applications.MobileNetV3Small(
+NameError: name 'tf_keras' is not defined
+
+ERROR conda.cli.main_run:execute(127): `conda run python3 /home/muneim/Dropbox/Conda/mynanet/3_mobilenet_ablation.py --width_mult 0.5 --splits_csv /Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv --flat_dir /Volumes/Evo/MYGARDENBIRD/mygardenbird16khz --n_mels 64 --dropout 0.05 --warmup_epochs 70 --mixup 0.2 --random_seed 100` failed. (See above for error)
+
+
+
+
+ 🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶 
+ 🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶 
+ 🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶  🔶 
+
+======================================================================
+ENVIRONMENT VALIDATION (Checking before dataset preparation)
+======================================================================
+✓ TensorFlow version: 2.15.0
+✓ tf_keras version: 2.15.0
+✓ Running on CPU (no GPU detected)
+
+✓ Environment check PASSED - safe to proceed with dataset preparation
+======================================================================
+Using AdamW optimizer (Linux - optimal for weight decay)
+
+Config:
+  Width multiplier: 0.5
+  Random seed: 100
+  Warmup epochs: 70
+  Finetune epochs: 20
+  Batch size: 32
+  Warmup LR: 0.001
+  Finetune LR: 1e-05
+  Dropout: 0.05
+  Model: MobileNetV3Small (from scratch, width_mult=0.5)
+  Augmentation: mixup
+  Mixup Alpha: 0.2
+  LR Schedule: cosine
+  Spectrogram: 64x300 (10ms/frame)
+  Splits CSV: /Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv
+  Flat dir: /Volumes/Evo/MYGARDENBIRD/mygardenbird16khz
+
+Computing global normalization stats...
+Computing global stats (sampling up to 100 files per class, n_mels=64)...
+✓ Global stats computed from 1200 files: -80.00 → -16.75 dB
+
+Loading dataset from CSV splits...
+======================================================================
+
+Dataset Structure: CSV-based split from /Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv
+  Flat dir: /Volumes/Evo/MYGARDENBIRD/mygardenbird16khz
+  CSV entries: 7200
+  Files found: 7200
+
+Augmentation Strategy:
+  Train: mixup (alpha=0.2)
+  Total samples to process: 7200
+
+✓ CSV Split Complete:
+  Test (held-out):          720 samples
+  Val (held-out):           720 samples
+  Train (w/ augment):      5760 samples
+  Total:                   7200 samples
+  Classes:                12
+
+  ✓ NO DATA LEAKAGE: Test and Val samples never augmented
+  ✓ INDEPENDENT SPLITS: True held-out evaluation (CSV-based)
+======================================================================
+
+✓ Total samples loaded: 7200
+✓ Number of classes: 12
+✓ Spectrogram shape: (64, 300, 1)
+
+Final Split:
+  Train:      5760 samples (80.0%)
+  Val:         720 samples (10.0%)
+  Test:        720 samples (10.0%)
+  Total:      7200 samples
+
+Test Set Class Distribution:
+  Coppersmith Barbet            :  60 samples
+  Spotted Dove                  :  60 samples
+  Collared Kingfisher           :  60 samples
+  Asian Koel                    :  60 samples
+  White-breasted Waterhen       :  60 samples
+  Common Iora                   :  60 samples
+  Large-tailed Nightjar         :  60 samples
+  Yellow-vented Bulbul          :  60 samples
+  Pied Fantail                  :  60 samples
+  Olive-backed Sunbird          :  60 samples
+  Common Tailorbird             :  60 samples
+  White-throated Kingfisher     :  60 samples
+
+Validation Set Class Distribution:
+  Coppersmith Barbet            :  60 samples
+  Spotted Dove                  :  60 samples
+  Collared Kingfisher           :  60 samples
+  Asian Koel                    :  60 samples
+  White-breasted Waterhen       :  60 samples
+  Common Iora                   :  60 samples
+  Large-tailed Nightjar         :  60 samples
+  Yellow-vented Bulbul          :  60 samples
+  Pied Fantail                  :  60 samples
+  Olive-backed Sunbird          :  60 samples
+  Common Tailorbird             :  60 samples
+  White-throated Kingfisher     :  60 samples
+
+✓ Calibration set: 200 samples (from validation set)
+
+======================================================================
+CREATING MobileNetV3Small MODEL (Series 3, width_mult=0.5) — from scratch
+======================================================================
+

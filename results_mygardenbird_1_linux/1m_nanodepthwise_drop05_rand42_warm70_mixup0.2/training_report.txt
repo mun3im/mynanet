@@ -1,0 +1,279 @@
+================================================================================
+ABLATION 4D: NANO DEPTHWISE-CNN @ 64×300 NATIVE (Version 4d)
+================================================================================
+Training started: 2026-05-11 15:28:46
+Platform: Linux x86_64
+Python: 3.10.19
+TensorFlow: 2.15.0
+Keras: 2.15.0
+
+
+================================================================================
+HYPERPARAMETERS
+================================================================================
+
+System Configuration:
+  Platform: Linux x86_64
+  GPU: 1 device(s) detected
+  GPU Memory: Dynamic growth enabled
+
+Audio Processing:
+  Target Sample Rate:     16000 Hz
+  Audio Length:           3 seconds (48000 samples)
+  FFT Size (N_FFT):       512
+  FFT Window:             Hann
+  Window Length:          400 samples (25ms at 16kHz)
+  Hop Length:             160 samples (10.0 ms)
+  Mel Bins (N_MELS):      64
+  Max Frequency (FMAX):   8000 Hz
+  Time Frames:            300 (FIXED)
+  Spectrogram Shape:      64x300
+  Center Padding:         Enabled
+
+Model Architecture:
+  Model Type:             NanoDepthwise-CNN (Model 4d)
+  Input Shape:            (64, 300, 1) (NATIVE, NO RESIZE)
+  Key Features:           Depthwise separable, No skip connections
+  Channel Ramp:           32 -> 64 -> 128 -> 192
+  Target INT8 Size:       <50 KB (Optimized for Multi-model M7)
+  Dropout Rate:           0.05
+  Activation:             ReLU
+  Global Pooling:         GlobalAveragePooling2D
+  Quantization Target:    INT8 optimized architecture
+
+Training Configuration:
+  Random Seed:            42
+  Warmup Epochs:          70
+  Fine-tune Epochs:       20
+  Total Epochs:           90
+  Batch Size:             32
+  Warmup Learning Rate:   0.001
+  Fine-tune Learning Rate:1e-05
+  LR Schedule:            cosine
+  Optimizer:              Adam
+  Loss Function:          Sparse Categorical Crossentropy
+
+Data Augmentation:
+  Mode:                   mixup
+  Type:                   Mixup (alpha=0.2)
+
+Quantization:
+  Method:                 Post-Training Quantization (PTQ)
+  Target Format:          INT8 TFLite
+  Calibration Samples:    200
+
+Deployment Target:
+  Platform:               ARM Cortex-M7 (Portenta H7)
+  Memory Target:          <150 KB Peak SRAM
+
+Data Paths:
+  Flat Dir:               /Volumes/Evo/MYGARDENBIRD/mygardenbird16khz
+  Splits CSV:             /Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv
+  Output Directory:       results_mygardenbird_1_linux/1m_nanodepthwise_drop05_rand42_warm70_mixup0.2
+
+================================================================================
+DATASET INFORMATION
+================================================================================
+
+Total Samples:          7200
+Number of Classes:      12
+
+Data Split (Fixed per-class):
+  Training:             5760 (80.0%)
+  Validation:           720 (10.0%)
+  Test:                 720 (10.0%)
+
+Class Distribution:
+  Coppersmith Barbet            :   600 samples ( 8.33%)
+  Spotted Dove                  :   600 samples ( 8.33%)
+  Collared Kingfisher           :   600 samples ( 8.33%)
+  Asian Koel                    :   600 samples ( 8.33%)
+  White-breasted Waterhen       :   600 samples ( 8.33%)
+  Common Iora                   :   600 samples ( 8.33%)
+  Large-tailed Nightjar         :   600 samples ( 8.33%)
+  Yellow-vented Bulbul          :   600 samples ( 8.33%)
+  Pied Fantail                  :   600 samples ( 8.33%)
+  Olive-backed Sunbird          :   600 samples ( 8.33%)
+  Common Tailorbird             :   600 samples ( 8.33%)
+  White-throated Kingfisher     :   600 samples ( 8.33%)
+
+================================================================================
+MODEL ARCHITECTURE
+================================================================================
+
+Model: "NanoDepthwise_CNN"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input_1 (InputLayer)        [(None, 64, 300, 1)]      0         
+                                                                 
+ init_conv (Conv2D)          (None, 32, 150, 32)       288       
+                                                                 
+ init_bn (BatchNormalizatio  (None, 32, 150, 32)       128       
+ n)                                                              
+                                                                 
+ init_relu (Activation)      (None, 32, 150, 32)       0         
+                                                                 
+ max_pooling2d (MaxPooling2  (None, 16, 75, 32)        0         
+ D)                                                              
+                                                                 
+ depthwise_conv2d (Depthwis  (None, 16, 75, 32)        288       
+ eConv2D)                                                        
+                                                                 
+ batch_normalization (Batch  (None, 16, 75, 32)        128       
+ Normalization)                                                  
+                                                                 
+ conv2d (Conv2D)             (None, 16, 75, 64)        2048      
+                                                                 
+ batch_normalization_1 (Bat  (None, 16, 75, 64)        256       
+ chNormalization)                                                
+                                                                 
+ activation (Activation)     (None, 16, 75, 64)        0         
+                                                                 
+ max_pooling2d_1 (MaxPoolin  (None, 8, 38, 64)         0         
+ g2D)                                                            
+                                                                 
+ depthwise_conv2d_1 (Depthw  (None, 8, 38, 64)         576       
+ iseConv2D)                                                      
+                                                                 
+ batch_normalization_2 (Bat  (None, 8, 38, 64)         256       
+ chNormalization)                                                
+                                                                 
+ conv2d_1 (Conv2D)           (None, 8, 38, 128)        8192      
+                                                                 
+ batch_normalization_3 (Bat  (None, 8, 38, 128)        512       
+ chNormalization)                                                
+                                                                 
+ activation_1 (Activation)   (None, 8, 38, 128)        0         
+                                                                 
+ max_pooling2d_2 (MaxPoolin  (None, 4, 19, 128)        0         
+ g2D)                                                            
+                                                                 
+ depthwise_conv2d_2 (Depthw  (None, 4, 19, 128)        1152      
+ iseConv2D)                                                      
+                                                                 
+ batch_normalization_4 (Bat  (None, 4, 19, 128)        512       
+ chNormalization)                                                
+                                                                 
+ conv2d_2 (Conv2D)           (None, 4, 19, 192)        24576     
+                                                                 
+ batch_normalization_5 (Bat  (None, 4, 19, 192)        768       
+ chNormalization)                                                
+                                                                 
+ activation_2 (Activation)   (None, 4, 19, 192)        0         
+                                                                 
+ global_average_pooling2d (  (None, 192)               0         
+ GlobalAveragePooling2D)                                         
+                                                                 
+ dropout (Dropout)           (None, 192)               0         
+                                                                 
+ softmax (Dense)             (None, 12)                2316      
+                                                                 
+=================================================================
+Total params: 41996 (164.05 KB)
+Trainable params: 40716 (159.05 KB)
+Non-trainable params: 1280 (5.00 KB)
+_________________________________________________________________
+
+Parameter Summary:
+  Total Parameters:       41,996
+  Trainable Parameters:   40,716
+
+Estimated Model Sizes:
+  FP32 (4 bytes/param):   0.16 MB
+  INT8 (1 byte/param):    41.0 KB
+
+✓ Model size within 150 KB target (Ultra-efficient)
+
+================================================================================
+STAGE 1: WARMUP TRAINING
+================================================================================
+
+Stage Duration: 2m 44s
+
+Training History:
+  Epochs Completed:       70
+  Final Train Loss:       0.4741
+  Final Train Accuracy:   0.9675
+  Final Val Loss:         0.5919
+  Final Val Accuracy:     0.8181
+  Best Val Loss:          0.5746
+  Best Val Accuracy:      0.8222
+
+================================================================================
+STAGE 2: FINE-TUNING
+================================================================================
+
+Stage Duration: 43s
+
+Training History:
+  Epochs Completed:       18
+  Final Train Loss:       0.5093
+  Final Train Accuracy:   0.9651
+  Final Val Loss:         0.5897
+  Final Val Accuracy:     0.8153
+  Best Val Loss:          0.5822
+  Best Val Accuracy:      0.8181
+
+================================================================================
+EVALUATION: FP32 (.keras)
+================================================================================
+
+FP32 (.keras) Evaluation:
+  Test Accuracy:          84.86%
+  Classification Report:  results_mygardenbird_1_linux/1m_nanodepthwise_drop05_rand42_warm70_mixup0.2/classification_report_fp32.txt
+
+================================================================================
+TFLITE CONVERSION (PTQ)
+================================================================================
+
+================================================================================
+EVALUATION: INT8 TFLite
+================================================================================
+
+INT8 TFLite Evaluation:
+  Test Accuracy:          84.58%
+  Classification Report:  results_mygardenbird_1_linux/1m_nanodepthwise_drop05_rand42_warm70_mixup0.2/classification_report_int8.txt
+
+================================================================================
+FINAL RESULTS SUMMARY
+================================================================================
+
+================================================================================
+QUICK REFERENCE (Copy to spreadsheet)
+================================================================================
+Model: 4d_nanodepthwise_v11 | Dropout: 0.05 | Aug: mixup | Seed: 42
+FP32: 84.86% | INT8: 84.58% | Drop: +0.28% | Time: 4m 6s
+
+--------------------------------------------------------------------------------
+DETAILED RESULTS
+--------------------------------------------------------------------------------
+
+Accuracy Results:
+  FP32 (.keras):           84.86%
+  INT8 (TFLite):           84.58%
+
+Accuracy Change (INT8 vs FP32):
+  Drop:                    +0.28% ✓ Excellent
+
+Model Sizes:
+  FP32 (.keras)       : 0.57 MB
+  INT8 (.tflite)      : 62.9 KB
+
+Training Metrics:
+  Best Warmup Val Acc:     82.22%
+  Best Finetune Val Acc:   81.81%
+  Final Train Acc:         96.51%
+  Final Val Acc:           81.53%
+  Train-Val Gap:          +14.98% ✗ Overfitting detected
+
+Execution Time:
+  Total Duration:         4m 6s
+
+Training completed: 2026-05-11 15:32:53
+
+================================================================================
+CSV FORMAT (for batch comparison)
+================================================================================
+model,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb
+4d_nanodepthwise_v11,0.05,mixup,70,20,0.001,1e-05,cosine,84.86,84.58,0.28,81.81,14.98,246,62.9

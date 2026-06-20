@@ -1,0 +1,87 @@
+Starting all ablation experiments at Selasa 23 Dis 2025 21:10:38 +08
+======================================================================
+
+✓ SUCCESS: 1_baseline_2dcnn.py completed
+  FP32: 92.22% | INT8: 92.22% | Time: 8m 46s
+✓ SUCCESS: 2a_depthwise_cnn.py completed
+  FP32: 10.00% | INT8: 10.00% | Time: 16m 56s
+✓ SUCCESS: 2b_mobilenetv3_64x300.py completed
+  FP32: 95.56% | INT8: 95.33% | Time: 
+✓ SUCCESS: 2c_mobilenetv3_pretrained_224x224.py completed
+  FP32: 90.33% | INT8: 90.78% | Time: 
+✓ SUCCESS: 3a_transformer_encoder.py completed
+  FP32: 85.67% | INT8: 85.78% | Time: 7m 44s
+✓ SUCCESS: 4a_tcn_baseline.py completed
+  FP32: 75.67% | INT8: 76.22% | Time: 9m 40s
+✓ SUCCESS: 4b_tcn_shallow.py completed
+  FP32: 76.78% | INT8: 77.00% | Time: 8m 39s
+✗ FAILED: 4c_tcn_wide.py encountered an error
+  Check log: ablation_logs/4c_tcn_wide.log
+  Last error lines:
+      File "/home/muneim/Dropbox/Conda/mynanet/4c_tcn_wide.py", line 724
+        Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
+                              ^
+    SyntaxError: invalid decimal literal
+✗ FAILED: 4d_tcn_deep.py encountered an error
+  Check log: ablation_logs/4d_tcn_deep.log
+  Last error lines:
+      File "/home/muneim/Dropbox/Conda/mynanet/4d_tcn_deep.py", line 724
+        Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
+                              ^
+    SyntaxError: invalid decimal literal
+✗ FAILED: 4e_tcn_kernel2.py encountered an error
+  Check log: ablation_logs/4e_tcn_kernel2.log
+  Last error lines:
+      File "/home/muneim/Dropbox/Conda/mynanet/4e_tcn_kernel2.py", line 724
+        Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
+                              ^
+    SyntaxError: invalid decimal literal
+✗ FAILED: 4f_tcn_kernel5.py encountered an error
+  Check log: ablation_logs/4f_tcn_kernel5.log
+  Last error lines:
+      File "/home/muneim/Dropbox/Conda/mynanet/4f_tcn_kernel5.py", line 724
+        Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
+                              ^
+    SyntaxError: invalid decimal literal
+✗ FAILED: 4g_tcn_no_residual.py encountered an error
+  Check log: ablation_logs/4g_tcn_no_residual.log
+  Last error lines:
+      File "/home/muneim/Dropbox/Conda/mynanet/4g_tcn_no_residual.py", line 724
+        Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
+                              ^
+    SyntaxError: invalid decimal literal
+✗ FAILED: 4h_tcn_lightweight.py encountered an error
+  Check log: ablation_logs/4h_tcn_lightweight.log
+  Last error lines:
+      File "/home/muneim/Dropbox/Conda/mynanet/4h_tcn_lightweight.py", line 726
+        Uses WIN_LENGTH=400 (25ms at 16kHz) for better time resolution.
+                              ^
+    SyntaxError: invalid decimal literal
+✗ FAILED: 4j_tcn_optimized.py encountered an error
+  Check log: ablation_logs/4j_tcn_optimized.log
+  Last error lines:
+    Note: Spectrogram cache exists but will be bypassed for fixed split
+    
+    Computing global normalization stats...
+    Global stats: -75.06 → -16.51 dB
+    
+    Loading dataset with FIXED 90/60/450 SPLIT...
+    ======================================================================
+    
+    ⚠ WARNING: use_augmentation=False
+      For publication-quality results, set --use_augmentation true
+      This will augment train set while keeping test/val clean.
+    
+    Traceback (most recent call last):
+      File "/home/muneim/Dropbox/Conda/mynanet/4j_tcn_optimized.py", line 1329, in <module>
+        main()
+      File "/home/muneim/Dropbox/Conda/mynanet/4j_tcn_optimized.py", line 1086, in main
+        X_train, X_val, X_test, y_train, y_val, y_test, class_labels = load_data(
+      File "/home/muneim/Dropbox/Conda/mynanet/4j_tcn_optimized.py", line 906, in load_data
+        if augmentation_mode in ['baseline', 'specaugment']:
+    NameError: name 'augmentation_mode' is not defined
+
+======================================================================
+All experiments completed at Selasa 23 Dis 2025 22:28:18 +08
+Total: 14 | Success: 7 | Failed: 7
+======================================================================

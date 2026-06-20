@@ -1,0 +1,21 @@
+INT8 Model Classification Report
+======================================================================
+
+                           precision    recall  f1-score   support
+
+       Coppersmith Barbet     1.0000    1.0000    1.0000        60
+             Spotted Dove     0.9524    1.0000    0.9756        60
+      Collared Kingfisher     0.9831    0.9667    0.9748        60
+               Asian Koel     1.0000    0.9667    0.9831        60
+  White-breasted Waterhen     0.9206    0.9667    0.9431        60
+              Common Iora     0.8730    0.9167    0.8943        60
+    Large-tailed Nightjar     1.0000    1.0000    1.0000        60
+     Yellow-vented Bulbul     0.9643    0.9000    0.9310        60
+             Pied Fantail     0.8871    0.9167    0.9016        60
+     Olive-backed Sunbird     0.9077    0.9833    0.9440        60
+        Common Tailorbird     1.0000    0.9667    0.9831        60
+White-throated Kingfisher     0.9811    0.8667    0.9204        60
+
+                 accuracy                         0.9542       720
+                macro avg     0.9558    0.9542    0.9542       720
+             weighted avg     0.9558    0.9542    0.9542       720

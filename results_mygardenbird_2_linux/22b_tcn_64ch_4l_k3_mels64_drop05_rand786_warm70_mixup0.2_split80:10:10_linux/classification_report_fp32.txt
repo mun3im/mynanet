@@ -1,0 +1,21 @@
+FP32 Model Classification Report
+======================================================================
+
+                           precision    recall  f1-score   support
+
+       Coppersmith Barbet     0.8679    0.7667    0.8142        60
+             Spotted Dove     0.8310    0.9833    0.9008        60
+      Collared Kingfisher     0.8281    0.8833    0.8548        60
+               Asian Koel     0.8154    0.8833    0.8480        60
+  White-breasted Waterhen     0.8276    0.8000    0.8136        60
+              Common Iora     0.8837    0.6333    0.7379        60
+    Large-tailed Nightjar     0.9815    0.8833    0.9298        60
+     Yellow-vented Bulbul     0.7377    0.7500    0.7438        60
+             Pied Fantail     0.5541    0.6833    0.6119        60
+     Olive-backed Sunbird     0.8438    0.9000    0.8710        60
+        Common Tailorbird     0.8400    0.7000    0.7636        60
+White-throated Kingfisher     0.7619    0.8000    0.7805        60
+
+                 accuracy                         0.8056       720
+                macro avg     0.8144    0.8056    0.8058       720
+             weighted avg     0.8144    0.8056    0.8058       720

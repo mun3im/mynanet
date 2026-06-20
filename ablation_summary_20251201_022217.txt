@@ -1,0 +1,26 @@
+================================================================================
+ABLATION STUDY SUMMARY
+================================================================================
+
+Date: Isnin 01 Dis 2025 02:22:17 +08
+Total Experiments: 28
+Completed: 28
+Failed: 0
+Total Time: 10h 41m 10s
+
+Configuration:
+  TCN Channels: 64
+  Warmup Epochs: 100
+  Finetune Epochs: 25
+  Random Seed: 42
+
+Variables:
+  Dropout: 0.0 0.05 0.1 0.15 0.2 0.25 0.3
+  Augmentation: none baseline mixup specaugment
+
+All results saved in results_7d_* directories
+Each directory contains:
+  - training_report.txt (detailed metrics)
+  - tcn_int8.tflite (deployable model)
+  - confusion matrices and classification reports
+
