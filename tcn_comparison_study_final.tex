@@ -116,17 +116,18 @@ We report mean $\pm$ standard deviation across 3 seeds. Per-run 95\% binomial (W
 \begin{table}[h]
 \centering
 \caption{Accuracy and Size Across Architectural Families (INT8, 3 Seeds)}
-\begin{tabular}{lrrrc}
+\small
+\begin{tabular}{lcccc}
 \toprule
-\textbf{Model (family)} & \textbf{INT8 \%} & \textbf{$\pm$sd} & \textbf{INT8 KB} & \textbf{MCU?} \\
+\textbf{Model} & \textbf{INT8\%} & \textbf{±sd} & \textbf{KB} & \textbf{MCU?} \\
 \midrule
-1D-raw (raw waveform)                    & 72.04 & 3.29    & 180.1      & \textbf{yes} \\
-TCN-22a (baseline, 64ch, 8L)             & 88.84 & 1.88    & 268.3      & \textbf{yes} \\
-TCN-22g (best in-budget, no-res, 8L)    & 92.92 & 0.14    & 266.1      & \textbf{yes} \\
-2D-CNN-1a (mel-spectrogram baseline)     & 92.92 & 0.59    & 1{,}629.9  & no \\
-ShuffleNetV2-Compact (4c)                & 88.66 & 1.53    & 476.3      & \textbf{yes} \\
-SqueezeNet v1.1 (4a)                     & 92.22 & 0.36    & 809.5      & no \\
-EfficientNetB0 (transfer, ImageNet)      & 91.58 & 1.08    & 5{,}126.6  & no \\
+1D-raw & 72.04 & 3.29 & 180 & yes \\
+TCN-2a & 88.84 & 1.88 & 268 & yes \\
+TCN-2g & 92.92 & 0.14 & 266 & yes \\
+CNN-1a & 92.92 & 0.59 & 1630 & no \\
+ShuffleNet-4c & 88.66 & 1.53 & 476 & yes \\
+SqueezeNet-4a & 92.22 & 0.36 & 810 & no \\
+EfficientNetB0 & 91.58 & 1.08 & 5127 & no \\
 \bottomrule
 \end{tabular}
 \label{tab:main}
@@ -134,8 +135,8 @@ EfficientNetB0 (transfer, ImageNet)      & 91.58 & 1.08    & 5{,}126.6  & no \\
 
 \textbf{Key observations:}
 \begin{enumerate}
-  \item \textbf{Best in-budget TCN ties 2D CNN in accuracy but fits the flash budget.} TCN-22g reaches 92.92\% INT8 at 266\,KB, matching the 2D CNN (92.92\%, 1{,}629.9\,KB). Only the TCN is deployable.
-  \item \textbf{Competitive accuracy across all families requires exceeding the budget.} The 2D CNN, SqueezeNet (4a, 809.5\,KB), and EfficientNetB0 all exceed 512\,KB. The only sub-92\% in-budget options are TCNs below 22g and ShuffleNet (88.66\%).
+  \item \textbf{Best in-budget TCN ties 2D CNN in accuracy but fits the flash budget.} TCN-2g reaches 92.92\% INT8 at 266\,KB, matching the 2D CNN (92.92\%, 1{,}629.9\,KB). Only the TCN is deployable.
+  \item \textbf{Competitive accuracy across all families requires exceeding the budget.} The 2D CNN, SqueezeNet (4a, 809.5\,KB), and EfficientNetB0 all exceed 512\,KB. The only sub-92\% in-budget options are TCNs below 2g and ShuffleNet (88.66\%).
   \item \textbf{Raw waveforms are insufficient.} 1D-raw at 72.04\% demonstrates that feature engineering (mel-spectrograms) is critical for competitive accuracy.
   \item \textbf{Transfer learning quantizes poorly.} EfficientNetB0 achieves 95.42\% FP32 but drops 3.84\,pp to 91.58\% INT8 (largest loss among all models), attributable to unbounded swish activations vs.\ ReLU used in from-scratch models.
 \end{enumerate}
@@ -144,19 +145,20 @@ EfficientNetB0 (transfer, ImageNet)      & 91.58 & 1.08    & 5{,}126.6  & no \\
 
 \begin{table}[h]
 \centering
-\caption{TCN Ablation: 8 Variants (INT8, 3 Seeds, Canonical Protocol). Sorted by Accuracy.}
-\begin{tabular}{llrrc}
+\caption{TCN Ablation: 8 Variants (INT8, sorted by accuracy).}
+\small
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Variant} & \textbf{Configuration} & \textbf{INT8 \% $\pm$sd} & \textbf{KB} & \textbf{MCU?} \\
+\textbf{Var} & \textbf{Config} & \textbf{INT8\%} & \textbf{±sd} & \textbf{KB} & \textbf{MCU?} \\
 \midrule
-22g   & no-residual, k=3          & 92.92 $\pm$ 0.14   & 266.1    & \textbf{yes} \\
-22c   & wide (128ch)              & 91.06 $\pm$ 0.90   & 877.3    & no \\
-22d   & deeper (10L)              & 89.91 $\pm$ 0.49   & 332.5    & \textbf{yes} \\
-22f   & large kernel (k=5)        & 89.63 $\pm$ 0.77   & 396.3    & \textbf{yes} \\
-22e   & small kernel (k=2)        & 89.44 $\pm$ 0.50   & 204.3    & \textbf{yes} \\
-22a   & baseline (8L, 64ch)       & 88.84 $\pm$ 1.88   & 268.3    & \textbf{yes} \\
-22h   & narrow (32ch, 6L)         & 85.09 $\pm$ 0.79   & 82.8     & \textbf{yes} \\
-22b   & shallow (4L)              & 81.34 $\pm$ 2.86   & 139.7    & \textbf{yes} \\
+2g & k=3 & 92.92 & 0.14 & 266 & yes \\
+2c & 128ch & 91.06 & 0.90 & 877 & no \\
+2d & 10L & 89.91 & 0.49 & 333 & yes \\
+2f & k=5 & 89.63 & 0.77 & 396 & yes \\
+2e & k=2 & 89.44 & 0.50 & 204 & yes \\
+2a & baseline & 88.84 & 1.88 & 268 & yes \\
+2h & 32ch & 85.09 & 0.79 & 83 & yes \\
+2b & 4L & 81.34 & 2.86 & 140 & yes \\
 \bottomrule
 \end{tabular}
 \label{tab:tcn-ablation}
@@ -164,20 +166,20 @@ EfficientNetB0 (transfer, ImageNet)      & 91.58 & 1.08    & 5{,}126.6  & no \\
 
 \textbf{Ablation insights:}
 \begin{enumerate}
-  \item \textbf{Competitive accuracy requires depth and residuals.} The only variants above 91\% (22g, 22c) use 8+ layers with residual depth. Variants below 81\% (22b, 22h, 22e) are shallow or ultra-narrow.
-  \item \textbf{All 8 deployable variants fit the budget.} Unlike the 2D CNN (1{,}629.9\,KB) which exceeds budget 3$\times$, every TCN variant $\le$877\,KB. Five variants (22e, 22a, 22g, 22d, 22f) stay well under 512\,KB.
-  \item \textbf{Residuals are necessary at scale.} The best-in-budget model (22g) at 92.92\% uses residual depth. Naive no-residual shallow designs (22h, 22b) drop to 81--85\%, confirming capacity, not minimalism, drives TCN accuracy.
-  \item \textbf{Kernel size and channel width are not levers under budget.} Variants 22e (k=2), 22f (k=5), and 22h (32ch) show that these parameters alone do not improve upon the baseline (22a).
+  \item \textbf{Competitive accuracy requires depth and residuals.} The only variants above 91\% (2g, 2c) use 8+ layers with residual depth. Variants below 81\% (2b, 2h, 2e) are shallow or ultra-narrow.
+  \item \textbf{All 8 deployable variants fit the budget.} Unlike the 2D CNN (1{,}629.9\,KB) which exceeds budget 3$\times$, every TCN variant $\le$877\,KB. Five variants (2e, 2a, 2g, 2d, 2f) stay well under 512\,KB.
+  \item \textbf{Residuals are necessary at scale.} The best-in-budget model (2g) at 92.92\% uses residual depth. Naive no-residual shallow designs (2h, 2b) drop to 81--85\%, confirming capacity, not minimalism, drives TCN accuracy.
+  \item \textbf{Kernel size and channel width are not levers under budget.} Variants 2e (k=2), 2f (k=5), and 2h (32ch) show that these parameters alone do not improve upon the baseline (2a).
 \end{enumerate}
 
 \subsection{Per-Class Behavior}
 
-Figure~\ref{fig:perclass} shows per-class INT8 F1 for three representative models: the best in-budget TCN (22g), the shallowest in-budget TCN (22b), and the 2D CNN (1a). The shallow TCN (22b) trails the deeper models uniformly across species, suggesting the gap is capacity-driven, not confusion-specific. Both deeper models (22g, 1a) struggle similarly on Common Iora and White-breasted Waterhen, indicating these confusions are representation-limited rather than architectural.
+Figure~\ref{fig:perclass} shows per-class INT8 F1 for three representative models: the best in-budget TCN (2g), the shallowest in-budget TCN (2b), and the 2D CNN (1a). The shallow TCN (2b) trails the deeper models uniformly across species, suggesting the gap is capacity-driven, not confusion-specific. Both deeper models (2g, 1a) struggle similarly on Common Iora and White-breasted Waterhen, indicating these confusions are representation-limited rather than architectural.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\columnwidth]{fig_perclass_f1.pdf}
-\caption{Per-class INT8 F1 (seed 42). The shallow TCN-22b trails the deeper models (22g, 1a) across nearly all species. Both deeper models are weakest on Common Iora and White-breasted Waterhen, suggesting confusion limits are dataset-imposed.}
+\caption{Per-class INT8 F1 (seed 42). The shallow TCN-2b trails the deeper models (2g, 1a) across nearly all species. Both deeper models are weakest on Common Iora and White-breasted Waterhen, suggesting confusion limits are dataset-imposed.}
 \label{fig:perclass}
 \end{figure}
 
@@ -188,11 +190,11 @@ Figure~\ref{fig:accsize} plots all models on the accuracy-vs-size plane (log sca
 \begin{figure}[h]
 \centering
 \includegraphics[width=\columnwidth]{fig_acc_vs_size.pdf}
-\caption{INT8 accuracy vs.\ model size (log scale). Green shaded region: $\le$512\,KB deployable budget. Red dashed line: 512\,KB Cortex-M7 flash limit. Models on the budget boundary (22g TCN at 266\,KB, 22a TCN at 268\,KB, ShuffleNet 4c at 476\,KB) are the only viable $>$85\% options. Models above 90\% accuracy all exceed budget, except TCNs.}
+\caption{INT8 accuracy vs.\ model size (log scale). Green shaded region: $\le$512\,KB deployable budget. Red dashed line: 512\,KB Cortex-M7 flash limit. Models on the budget boundary (2g TCN at 266\,KB, 2a TCN at 268\,KB, ShuffleNet 4c at 476\,KB) are the only viable $>$85\% options. Models above 90\% accuracy all exceed budget, except TCNs.}
 \label{fig:accsize}
 \end{figure}
 
-The Pareto frontier for $\le$512\,KB models runs: 1D-raw (72\%) $\to$ TCN-22b (81\%) $\to$ TCN-22a (89\%) $\to$ TCN-22g (92.92\%). The 2D CNN (1a, 92.92\%, 1{,}630\,KB) is inefficient under budget: to match TCN-22g's accuracy, it requires $6\times$ more flash. ShuffleNet (4c, 88.66\%, 476\,KB) is the only non-TCN in-budget competitor but trails TCN-22g by 4.26\,pp.
+The Pareto frontier for $\le$512\,KB models runs: 1D-raw (72\%) $\to$ TCN-2b (81\%) $\to$ TCN-2a (89\%) $\to$ TCN-2g (92.92\%). The 2D CNN (1a, 92.92\%, 1{,}630\,KB) is inefficient under budget: to match TCN-2g's accuracy, it requires $6\times$ more flash. ShuffleNet (4c, 88.66\%, 476\,KB) is the only non-TCN in-budget competitor but trails TCN-2g by 4.26\,pp.
 
 % ================================================================
 % IV. DISCUSSION
@@ -206,7 +208,7 @@ The canonical comparison is at fixed \emph{accuracy}, not at fixed \emph{size}. 
 
 \subsection{Competitive Accuracy Requires Residual Depth}
 
-The ablation makes the budget-accuracy tension explicit: TCNs above 91\% (22g, 22c) all use 8+ residual layers; TCNs below 85\% (22b, 22h) are shallow or ultra-narrow. The intuition that ``compact models should avoid residuals'' does not hold; the best in-budget model (22g) uses residuals, demonstrating that capacity, not minimalism, is the bottleneck.
+The ablation makes the budget-accuracy tension explicit: TCNs above 91\% (2g, 2c) all use 8+ residual layers; TCNs below 85\% (2b, 2h) are shallow or ultra-narrow. The intuition that ``compact models should avoid residuals'' does not hold; the best in-budget model (2g) uses residuals, demonstrating that capacity, not minimalism, is the bottleneck.
 
 \subsection{Transfer Learning and INT8 Degradation}
 

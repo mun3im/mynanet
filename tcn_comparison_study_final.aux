@@ -1,0 +1,41 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {II}Dataset and Experimental Protocol}{1}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-A}}Target Platform and Budget Justification}{1}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}Dataset}{1}{subsection.2.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces MyGardenBird Dataset: 12-class Bird Sound Classification}}{2}{table.1}\protected@file@percent }
+\newlabel{tab:dataset}{{I}{2}{MyGardenBird Dataset: 12-class Bird Sound Classification}{table.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-C}}Training and Quantization Protocol}{2}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-D}}Statistical Reporting}{2}{subsection.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Results}{2}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Main Comparison: Accuracy vs.\ Deployability}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Accuracy and Size Across Architectural Families (INT8, 3 Seeds)}}{2}{table.2}\protected@file@percent }
+\newlabel{tab:main}{{II}{2}{Accuracy and Size Across Architectural Families (INT8, 3 Seeds)}{table.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}TCN Ablation Study}{2}{subsection.3.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces TCN Ablation: 8 Variants (INT8, sorted by accuracy).}}{2}{table.3}\protected@file@percent }
+\newlabel{tab:tcn-ablation}{{III}{2}{TCN Ablation: 8 Variants (INT8, sorted by accuracy)}{table.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Per-Class Behavior}{2}{subsection.3.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Per-class INT8 F1 (seed 42). The shallow TCN-2b trails the deeper models (2g, 1a) across nearly all species. Both deeper models are weakest on Common Iora and White-breasted Waterhen, suggesting confusion limits are dataset-imposed.}}{3}{figure.1}\protected@file@percent }
+\newlabel{fig:perclass}{{1}{3}{Per-class INT8 F1 (seed 42). The shallow TCN-2b trails the deeper models (2g, 1a) across nearly all species. Both deeper models are weakest on Common Iora and White-breasted Waterhen, suggesting confusion limits are dataset-imposed}{figure.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}Accuracy-Size Trade-off (Pareto Analysis)}{3}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Discussion}{3}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Under Flash Budget: 1D TCNs Are More Size-Efficient}{3}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Competitive Accuracy Requires Residual Depth}{3}{subsection.4.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces INT8 accuracy vs.\ model size (log scale). Green shaded region: $\le $512\,KB deployable budget. Red dashed line: 512\,KB Cortex-M7 flash limit. Models on the budget boundary (2g TCN at 266\,KB, 2a TCN at 268\,KB, ShuffleNet 4c at 476\,KB) are the only viable $>$85\% options. Models above 90\% accuracy all exceed budget, except TCNs.}}{3}{figure.2}\protected@file@percent }
+\newlabel{fig:accsize}{{2}{3}{INT8 accuracy vs.\ model size (log scale). Green shaded region: $\le $512\,KB deployable budget. Red dashed line: 512\,KB Cortex-M7 flash limit. Models on the budget boundary (2g TCN at 266\,KB, 2a TCN at 268\,KB, ShuffleNet 4c at 476\,KB) are the only viable $>$85\% options. Models above 90\% accuracy all exceed budget, except TCNs}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Transfer Learning and INT8 Degradation}{3}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}Practical Deployment Implications}{3}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-E}}Limitations}{3}{subsection.4.5}\protected@file@percent }
+\citation{bai2018empirical,choi2019tcresnet,kim2021bcresnet}
+\citation{ciapponi2025wrennet}
+\bibcite{bai2018empirical}{1}
+\bibcite{choi2019tcresnet}{2}
+\bibcite{kim2021bcresnet}{3}
+\bibcite{ciapponi2025wrennet}{4}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Related Work}{4}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusion}{4}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{4}{section*.1}\protected@file@percent }
+\gdef \@abspage@last{4}
