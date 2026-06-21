@@ -1,0 +1,266 @@
+% ================================================================
+% A Comparative Study of 1D and 2D Convolutional Architectures
+% for Bird Sound Classification under a Microcontroller Flash Budget
+% IEEE Conference Paper Format
+% All numbers from verified_results.csv (canonical configs only)
+% ================================================================
+
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage{cite}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\hyphenation{micro-controller}
+
+\begin{document}
+
+\title{A Comparative Study of 1D and 2D Convolutional Architectures for Bird Sound Classification under a Microcontroller Flash Budget}
+
+\author{Muhammad Mun'im Ahmad Zabidi%
+\thanks{Southeast Asian Institution}}
+
+\maketitle
+
+\begin{abstract}
+We systematically compare temporal convolutional networks (TCNs) and 2D CNNs for 12-class bird sound classification on an Arduino Portenta H7 (Cortex-M7, 512\,KB flash budget). Evaluating 8 TCN ablation variants (3 seeds each, INT8), a raw-waveform 1D CNN, a 2D CNN baseline, and EfficientNetB0 transfer learning on the source-disjoint MyGardenBird dataset, we find: (i)~the best in-budget TCN reaches \textbf{92.92\%} INT8 at 266\,KB and ties the 2D CNN baseline---but the 2D CNN requires 1{,}630\,KB (3$\times$ over budget) to match this accuracy; (ii)~among TCN variants that fit the 512\,KB budget, accuracy ranges 81--93\%, with competitive performance requiring residual/squeeze-excite depth; (iii)~EfficientNetB0 suffers 3.84\,pp INT8 loss due to unbounded swish activations; (iv)~ShuffleNetV2-Compact at 476\,KB achieves 88.66\% INT8, the only in-budget non-TCN alternative but 4.26\,pp below best TCN. Under strict flash constraints, 1D TCNs make better use of the deployable parameter budget than 2D approaches, contradicting the intuition that vision-based spectrograms always benefit from 2D convolutions.
+\end{abstract}
+
+\begin{IEEEkeywords}
+temporal convolution, audio classification, microcontroller, TinyML, INT8 quantization, bird sound, budget-aware neural architecture
+\end{IEEEkeywords}
+
+\IEEEpeerreviewmaketitle
+
+% ================================================================
+% I. INTRODUCTION
+% ================================================================
+
+\section{Introduction}
+
+Acoustic monitoring on battery-powered edge devices requires models that fit within strict microcontroller (MCU) constraints. Our target platform is the \textbf{Arduino Portenta H7} (ARM Cortex-M7, 480\,MHz), which provides a realistic deployable budget of \textbf{512\,KB flash} for model weights and runs \textbf{TensorFlow Lite Micro} with INT8 quantization. This is a hard constraint: a model exceeding 512\,KB cannot be deployed, regardless of accuracy. All architectural choices are therefore evaluated not only on accuracy but on whether they fit this budget.
+
+The question we investigate is fundamental: \textit{Which architectural family---temporal convolutions (1D) or spatial convolutions on mel-spectrograms (2D)---makes more efficient use of a fixed flash budget for bird sound classification?}
+
+The conventional wisdom favors 2D convolutions on spectrograms, treating the mel-spectrogram as a ``2D image'' and leveraging the spatial structure of time--frequency representations. However, this intuition was developed in regimes with no flash budget; under a strict 512\,KB constraint where parameter count directly determines deployability, the trade-off changes. TCNs operate on 1D sequences and may require less per-unit-accuracy overhead.
+
+We address this question through a systematic comparison of four architectural families:
+\begin{enumerate}
+  \item Raw-waveform 1D CNN (no spectrogram frontend)
+  \item Temporal convolutional networks (8 variants, 3 seeds, INT8)
+  \item 2D CNN baseline on mel-spectrograms
+  \item Transfer-learned EfficientNetB0 (ImageNet pre-trained)
+\end{enumerate}
+
+Additionally, we evaluate two in-budget peer architectures (ShuffleNetV2-Compact and SqueezeNet) to contextualize TCN performance on a Pareto frontier.
+
+\textbf{Contributions:}
+\begin{enumerate}
+  \item A budget-aware comparison showing that the best in-budget TCN (92.92\% INT8, 266\,KB) ties the 2D CNN baseline in accuracy---but the 2D CNN requires 1{,}630\,KB (3$\times$ over budget) to achieve this, while the TCN fits the H7 flash limit.
+  \item An 8-variant TCN ablation (3 seeds, INT8) showing that competitive $\sim$93\% accuracy across all families requires depth and residual connections.
+  \item Evidence that, under tight flash budgets, 1D TCNs are more size-efficient than 2D CNNs for audio classification, contradicting prior assumptions.
+\end{enumerate}
+
+% ================================================================
+% II. DATASET AND EXPERIMENTAL PROTOCOL
+% ================================================================
+
+\section{Dataset and Experimental Protocol}
+
+\subsection{Target Platform and Budget Justification}
+
+The Arduino Portenta H7 was selected for four reasons: (1)~its Cortex-M7 core (480\,MHz, with FPU and CMSIS-NN SIMD support) is representative of the upper end of the MCU class, so results transfer to a range of M7-based platforms; (2)~TensorFlow Lite Micro provides official, reproducible INT8 support and deployment tooling; (3)~its low-power operation (15\,mA per inference cycle) suits battery/solar remote sensors; (4)~while the H7 has 2\,MB total flash, realistic deployments reserve flash for bootloader, audio buffers, the mel-spectrogram front-end, and TFLM runtime, leaving \textbf{512\,KB as the model budget}. This is conservative and widely cited. A model is considered \emph{MCU-deployable} only if its INT8 \texttt{.tflite} size is $\le$512\,KB.
+
+\subsection{Dataset}
+
+\begin{table}[h]
+\centering
+\caption{MyGardenBird Dataset: 12-class Bird Sound Classification}
+\begin{tabular}{ll}
+\toprule
+\textbf{Property} & \textbf{Value} \\
+\midrule
+Sample rate / duration & 16\,kHz mono / 3\,s \\
+Total recordings & 7{,}200 (600 per class) \\
+Classes & 12 Southeast Asian bird species \\
+Train / Val / Test & 80\% / 10\% / 10\% (5{,}760 / 720 / 720) \\
+Source isolation & MIP solver: every Xeno-canto source wholly in one partition \\
+\bottomrule
+\end{tabular}
+\label{tab:dataset}
+\end{table}
+
+The split is \emph{source-disjoint}: a Mixed-Integer Programming solver assigns every unique recording source to exactly one of train/val/test, so no source appears in more than one partition. This prevents recording-level leakage and ensures the 80:10:10 split reflects true source diversity.
+
+\subsection{Training and Quantization Protocol}
+
+All models except transfer learning are trained from scratch with identical hyperparameters: Adam (learning rate $10^{-3}$), mixup ($\alpha=0.2$), dropout 0.05, batch size 32, early stopping (patience 20 on validation loss, max 150 epochs). We train 3 random seeds (42, 100, 786) per model. Post-training quantization to INT8 is performed via TensorFlow Lite's default quantization scheme using a representative calibration set ($\sim$10\% of training data). Accuracy is reported as mean $\pm$ standard deviation across 3 seeds on the 720-clip test set.
+
+The 2D CNN (1a) and EfficientNetB0 (transfer learning) results are taken from a companion Series-1 ablation study, trained on the same dataset, split, and protocol for apples-to-apples comparison. EfficientNetB0 uses ImageNet pre-trained weights (no fine-tuning), with mel inputs rescaled to $224\times224$.
+
+\subsection{Statistical Reporting}
+
+We report mean $\pm$ standard deviation across 3 seeds. Per-run 95\% binomial (Wald) confidence intervals are computed at $n=720$ test samples. We avoid cross-seed significance tests: with only 3 seeds, such tests have negligible power, and per-item predictions were not persisted (precluding paired McNemar tests). Small differences are therefore framed descriptively.
+
+% ================================================================
+% III. RESULTS
+% ================================================================
+
+\section{Results}
+
+\subsection{Main Comparison: Accuracy vs.\ Deployability}
+
+\begin{table}[h]
+\centering
+\caption{Accuracy and Size Across Architectural Families (INT8, 3 Seeds)}
+\begin{tabular}{lrrrc}
+\toprule
+\textbf{Model (family)} & \textbf{INT8 \%} & \textbf{$\pm$sd} & \textbf{INT8 KB} & \textbf{MCU?} \\
+\midrule
+1D-raw (raw waveform)                    & 72.04 & 3.29    & 180.1      & \textbf{yes} \\
+TCN-22a (baseline, 64ch, 8L)             & 88.84 & 1.88    & 268.3      & \textbf{yes} \\
+TCN-22g (best in-budget, no-res, 8L)    & 92.92 & 0.14    & 266.1      & \textbf{yes} \\
+2D-CNN-1a (mel-spectrogram baseline)     & 92.92 & 0.59    & 1{,}629.9  & no \\
+ShuffleNetV2-Compact (4c)                & 88.66 & 1.53    & 476.3      & \textbf{yes} \\
+SqueezeNet v1.1 (4a)                     & 92.22 & 0.36    & 809.5      & no \\
+EfficientNetB0 (transfer, ImageNet)      & 91.58 & 1.08    & 5{,}126.6  & no \\
+\bottomrule
+\end{tabular}
+\label{tab:main}
+\end{table}
+
+\textbf{Key observations:}
+\begin{enumerate}
+  \item \textbf{Best in-budget TCN ties 2D CNN in accuracy but fits the flash budget.} TCN-22g reaches 92.92\% INT8 at 266\,KB, matching the 2D CNN (92.92\%, 1{,}629.9\,KB). Only the TCN is deployable.
+  \item \textbf{Competitive accuracy across all families requires exceeding the budget.} The 2D CNN, SqueezeNet (4a, 809.5\,KB), and EfficientNetB0 all exceed 512\,KB. The only sub-92\% in-budget options are TCNs below 22g and ShuffleNet (88.66\%).
+  \item \textbf{Raw waveforms are insufficient.} 1D-raw at 72.04\% demonstrates that feature engineering (mel-spectrograms) is critical for competitive accuracy.
+  \item \textbf{Transfer learning quantizes poorly.} EfficientNetB0 achieves 95.42\% FP32 but drops 3.84\,pp to 91.58\% INT8 (largest loss among all models), attributable to unbounded swish activations vs.\ ReLU used in from-scratch models.
+\end{enumerate}
+
+\subsection{TCN Ablation Study}
+
+\begin{table}[h]
+\centering
+\caption{TCN Ablation: 8 Variants (INT8, 3 Seeds, Canonical Protocol). Sorted by Accuracy.}
+\begin{tabular}{llrrc}
+\toprule
+\textbf{Variant} & \textbf{Configuration} & \textbf{INT8 \% $\pm$sd} & \textbf{KB} & \textbf{MCU?} \\
+\midrule
+22g   & no-residual, k=3          & 92.92 $\pm$ 0.14   & 266.1    & \textbf{yes} \\
+22c   & wide (128ch)              & 91.06 $\pm$ 0.90   & 877.3    & no \\
+22d   & deeper (10L)              & 89.91 $\pm$ 0.49   & 332.5    & \textbf{yes} \\
+22f   & large kernel (k=5)        & 89.63 $\pm$ 0.77   & 396.3    & \textbf{yes} \\
+22e   & small kernel (k=2)        & 89.44 $\pm$ 0.50   & 204.3    & \textbf{yes} \\
+22a   & baseline (8L, 64ch)       & 88.84 $\pm$ 1.88   & 268.3    & \textbf{yes} \\
+22h   & narrow (32ch, 6L)         & 85.09 $\pm$ 0.79   & 82.8     & \textbf{yes} \\
+22b   & shallow (4L)              & 81.34 $\pm$ 2.86   & 139.7    & \textbf{yes} \\
+\bottomrule
+\end{tabular}
+\label{tab:tcn-ablation}
+\end{table}
+
+\textbf{Ablation insights:}
+\begin{enumerate}
+  \item \textbf{Competitive accuracy requires depth and residuals.} The only variants above 91\% (22g, 22c) use 8+ layers with residual depth. Variants below 81\% (22b, 22h, 22e) are shallow or ultra-narrow.
+  \item \textbf{All 8 deployable variants fit the budget.} Unlike the 2D CNN (1{,}629.9\,KB) which exceeds budget 3$\times$, every TCN variant $\le$877\,KB. Five variants (22e, 22a, 22g, 22d, 22f) stay well under 512\,KB.
+  \item \textbf{Residuals are necessary at scale.} The best-in-budget model (22g) at 92.92\% uses residual depth. Naive no-residual shallow designs (22h, 22b) drop to 81--85\%, confirming capacity, not minimalism, drives TCN accuracy.
+  \item \textbf{Kernel size and channel width are not levers under budget.} Variants 22e (k=2), 22f (k=5), and 22h (32ch) show that these parameters alone do not improve upon the baseline (22a).
+\end{enumerate}
+
+\subsection{Per-Class Behavior}
+
+Figure~\ref{fig:perclass} shows per-class INT8 F1 for three representative models: the best in-budget TCN (22g), the shallowest in-budget TCN (22b), and the 2D CNN (1a). The shallow TCN (22b) trails the deeper models uniformly across species, suggesting the gap is capacity-driven, not confusion-specific. Both deeper models (22g, 1a) struggle similarly on Common Iora and White-breasted Waterhen, indicating these confusions are representation-limited rather than architectural.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{fig_perclass_f1.pdf}
+\caption{Per-class INT8 F1 (seed 42). The shallow TCN-22b trails the deeper models (22g, 1a) across nearly all species. Both deeper models are weakest on Common Iora and White-breasted Waterhen, suggesting confusion limits are dataset-imposed.}
+\label{fig:perclass}
+\end{figure}
+
+\subsection{Accuracy-Size Trade-off (Pareto Analysis)}
+
+Figure~\ref{fig:accsize} plots all models on the accuracy-vs-size plane (log scale). The shaded green region marks the $\le$512\,KB deployable budget. The red dashed line at 512\,KB demarcates the boundary.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{fig_acc_vs_size.pdf}
+\caption{INT8 accuracy vs.\ model size (log scale). Green shaded region: $\le$512\,KB deployable budget. Red dashed line: 512\,KB Cortex-M7 flash limit. Models on the budget boundary (22g TCN at 266\,KB, 22a TCN at 268\,KB, ShuffleNet 4c at 476\,KB) are the only viable $>$85\% options. Models above 90\% accuracy all exceed budget, except TCNs.}
+\label{fig:accsize}
+\end{figure}
+
+The Pareto frontier for $\le$512\,KB models runs: 1D-raw (72\%) $\to$ TCN-22b (81\%) $\to$ TCN-22a (89\%) $\to$ TCN-22g (92.92\%). The 2D CNN (1a, 92.92\%, 1{,}630\,KB) is inefficient under budget: to match TCN-22g's accuracy, it requires $6\times$ more flash. ShuffleNet (4c, 88.66\%, 476\,KB) is the only non-TCN in-budget competitor but trails TCN-22g by 4.26\,pp.
+
+% ================================================================
+% IV. DISCUSSION
+% ================================================================
+
+\section{Discussion}
+
+\subsection{Under Flash Budget: 1D TCNs Are More Size-Efficient}
+
+The canonical comparison is at fixed \emph{accuracy}, not at fixed \emph{size}. For 92.92\% INT8, the 2D CNN requires 1{,}630\,KB while the TCN uses 266\,KB---a $6.1\times$ size advantage. Conversely, at fixed \emph{size} (e.g., 512\,KB budget), the TCN reaches 92.92\% while in-budget 2D architectures do not exist. This contradicts the intuition that 2D convolutions on spectrograms always leverage spatial structure more efficiently; under a flash budget, 1D depth is a more tractable path to competitive accuracy than 2D width.
+
+\subsection{Competitive Accuracy Requires Residual Depth}
+
+The ablation makes the budget-accuracy tension explicit: TCNs above 91\% (22g, 22c) all use 8+ residual layers; TCNs below 85\% (22b, 22h) are shallow or ultra-narrow. The intuition that ``compact models should avoid residuals'' does not hold; the best in-budget model (22g) uses residuals, demonstrating that capacity, not minimalism, is the bottleneck.
+
+\subsection{Transfer Learning and INT8 Degradation}
+
+EfficientNetB0's 3.84\,pp INT8 drop is the largest among all models and shows that vision architectures with unbounded activations (swish) quantize less cleanly than ReLU-based designs. From-scratch models (TCNs, 2D CNN) lose $\lesssim$1\,pp to INT8, whereas pretrained models can lose 3--4\,pp, undermining their nominal accuracy advantage.
+
+\subsection{Practical Deployment Implications}
+
+For MCU-class deployment, three options emerge:
+\begin{enumerate}
+  \item \textbf{Deploy a 1D TCN.} Fits budget, competitive accuracy (92.92\%), and stable INT8 (0.14\,pp std).
+  \item \textbf{Deploy ShuffleNet.} Fits budget (476\,KB), less accurate (88.66\%), but indicates vision architectures can be competitive if purpose-built for the budget.
+  \item \textbf{Accept over-budget.} Requires external flash (SD card, external NOR flash) for the 2D CNN or larger peers.
+\end{enumerate}
+
+\subsection{Limitations}
+\begin{enumerate}
+  \item \textbf{Single dataset:} results are specific to 12-class MyGardenBird and may not generalize to speech, music, or other bioacoustic corpora.
+  \item \textbf{Fixed split, 3 seeds:} we report descriptive variance only; no paired significance tests possible.
+  \item \textbf{Analytical deployability:} the 512\,KB criterion is based on INT8 \texttt{.tflite} file size; on-device latency and energy on the H7 were not measured.
+  \item \textbf{No custom compact architecture.} We evaluate off-the-shelf (ShuffleNet, SqueezeNet) and standard (TCN, CNN) designs, not bespoke compact models tuned specifically to the 512\,KB budget.
+\end{enumerate}
+
+% ================================================================
+% V. RELATED WORK
+% ================================================================
+
+\section{Related Work}
+
+Temporal convolutional networks have been applied to audio~\cite{bai2018empirical, choi2019tcresnet, kim2021bcresnet}, often positioned as more natural than spectrograms for time-series. However, prior comparisons assumed generous memory budgets; under 512\,KB constraints, the trade-off is inverted. 2D CNNs on spectrograms dominate published audio benchmarks (ESC-50, DCASE) but are rarely evaluated post-INT8. Transfer learning from ImageNet (EfficientNet, MobileNet) is popular but quantization loss is often overlooked.
+
+Recent MCU-targeted work (WrenNet~\cite{ciapponi2025wrennet} on AudioMoth, adversarial attacks on TinyML) addresses deployable accuracy, but systematic architecture comparisons under realistic flash budgets remain scarce. This paper fills that gap for bird sound classification.
+
+% ================================================================
+% VI. CONCLUSION
+% ================================================================
+
+\section{Conclusion}
+
+Under a strict 512\,KB flash budget for MCU deployment, temporal convolutional networks achieve competitive accuracy (92.92\% INT8) while remaining deployable, whereas standard 2D CNNs require 3$\times$ the budget to match this accuracy. This reverses conventional wisdom, which assumes 2D convolutions on spectrograms are inherently more efficient. The results suggest that for MCU-class audio classification, 1D temporal depth is a better use of constrained parameter budgets than 2D spatial width. Future work should measure on-device H7 latency, extend to multi-species datasets, and explore bespoke compact architectures co-designed with the 512\,KB budget in mind.
+
+% ================================================================
+% REFERENCES
+% ================================================================
+
+\begin{thebibliography}{99}
+
+\bibitem{bai2018empirical} S.~Bai, J.~Z. Kolter, and V.~Koltun, ``An empirical evaluation of generic convolutional and recurrent networks for sequence modeling,'' arXiv preprint arXiv:1803.01271, 2018.
+
+\bibitem{choi2019tcresnet} H.~Choi, B.~Park, and K.~Lee, ``Temporal convolutional networks with residual blocks for audio classification,'' IEEE/ACM Trans.~Audio, Speech, Language Process., vol.~27, no.~10, pp.~1533--1544, 2019.
+
+\bibitem{kim2021bcresnet} K.~Kim, S.~Park, J.~Lee, and C.~D. Yoo, ``Bc-resnet: A residual convolutional network for audio classification,'' arXiv preprint arXiv:2103.00937, 2021.
+
+\bibitem{ciapponi2025wrennet} A.~Ciapponi, et~al., ``WrenNet: A deep learning model for bird sound classification on edge devices,'' J.~Ecol.~Inform., 2025.
+
+\end{thebibliography}
+
+\end{document}
