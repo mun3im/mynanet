@@ -13,23 +13,15 @@ model,n_seeds,fp32_mean,fp32_sd,int8_mean,int8_sd,params,int8_kb,mcu_fit,config_
 1m_nanodepthwise,3,84.44,1.11,84.49,0.84,"41,996",62.9,True,True,
 1p_mbv3,3,94.68,0.85,94.68,0.77,"193,396",269.3,True,True,
 1q_efficientnet,3,94.31,0.64,94.35,0.71,"156,354",219.9,True,True,
-1r_efficientnetb0,9,96.00,0.61,92.87,1.53,"4,380,591",5126.6,False,False,mels=None drop=None warm=None split=80_10_10; mels=None drop=None warm=None split=70_15_15; mels=None drop=None warm=None split=75_10_15
-22a_tcn,3,88.89,1.93,88.84,1.88,"205,836",268.3,True,True,
-22b_tcn,3,81.62,2.86,81.34,2.86,"105,484",139.7,True,True,
-22c_tcn,3,90.97,1.05,91.06,0.90,"804,876",877.3,False,True,
-22d_tcn,3,89.68,0.42,89.91,0.49,"256,012",332.5,True,True,
-22e_tcn,3,89.49,0.70,89.44,0.50,"140,300",204.3,True,True,
-22f_tcn,3,89.58,0.64,89.63,0.77,"336,908",396.3,True,True,
-22g_tcn,3,92.92,0.28,92.92,0.14,"205,836",266.1,True,True,
-22h_tcn,3,85.42,0.72,85.09,0.79,"40,972",82.8,True,True,
-2a_tcn,3,79.63,1.75,79.86,1.69,"401,612",526.8,False,False,mels=64 drop=0.3 warm=50 split=80_10_10
-2b_tcn,3,81.16,1.97,81.25,1.14,"343,884",452.6,True,False,mels=64 drop=0.3 warm=50 split=None
-2c_tcn,3,82.83,1.46,83.61,1.58,"401,612",524.4,False,False,mels=64 drop=0.3 warm=50 split=None
-2d_tcn,3,58.43,3.60,59.40,2.73,"58,236",133.1,True,False,mels=64 drop=0.3 warm=50 split=None
-2e_tcn,3,80.46,1.67,80.42,1.73,"401,612",526.8,False,False,mels=64 drop=0.3 warm=50 split=None
-2f_tcn,3,73.01,2.93,72.59,1.79,"574,796",765.4,False,False,mels=64 drop=0.3 warm=50 split=None
-2g_tcn,3,73.70,4.43,72.92,4.82,"303,308",430.8,True,False,mels=64 drop=0.3 warm=50 split=None
-2h_tcn,3,80.79,2.23,80.09,2.23,"598,220",718.8,False,False,mels=64 drop=0.3 warm=50 split=None
+1r_efficientnetb0,9,96.00,0.61,92.87,1.53,"4,380,591",5126.6,False,False,mels=None drop=None warm=None split=75_10_15; mels=None drop=None warm=None split=70_15_15; mels=None drop=None warm=None split=80_10_10
+2a_tcn,3,88.89,1.93,88.84,1.88,"205,836",268.3,True,True,
+2b_tcn,3,81.62,2.86,81.34,2.86,"105,484",139.7,True,True,
+2c_tcn,3,90.97,1.05,91.06,0.90,"804,876",877.3,False,True,
+2d_tcn,3,89.68,0.42,89.91,0.49,"256,012",332.5,True,True,
+2e_tcn,3,89.49,0.70,89.44,0.50,"140,300",204.3,True,True,
+2f_tcn,3,89.58,0.64,89.63,0.77,"336,908",396.3,True,True,
+2g_tcn,3,92.92,0.28,92.92,0.14,"205,836",266.1,True,True,
+2h_tcn,3,85.42,0.72,85.09,0.79,"40,972",82.8,True,True,
 2k_tcn,3,85.19,1.86,85.14,2.27,"1,314,428",1480.1,False,False,mels=64 drop=0.3 warm=50 split=None
 2l_tcn,3,92.27,1.03,92.22,1.23,"2,233,484",2274.1,False,False,mels=64 drop=0.3 warm=50 split=80_10_10
 4a_squeezenet,3,92.45,0.49,92.22,0.36,"736,332",809.5,False,False,mels=64 drop=0.2 warm=50 split=80_10_10
