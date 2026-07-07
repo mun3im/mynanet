@@ -1,29 +1,38 @@
 #!/usr/bin/env python3
 """
-MBV3-SE + Hard-Swish — Model 1p
+EfficientNet-SE — Model 1m
 Post-Training Quantization (PTQ) → Cortex-M7 deployment
 Fixed spectrogram shape: 64x300 (10ms per frame)
 
-Identical to 1j (MBV3-SE) with one change:
-  Replace ReLU6 with hard-swish in the expand and depthwise steps of blocks 3 and 4.
-  Blocks 1–2 keep ReLU6 (small feature maps don't benefit from the richer activation).
+Based on 1j (MBV3-SE) with two EfficientNet innovations:
 
-  hard_swish(x) = x * relu6(x+3)/6
-  - MBV3-Large activation; smoother gradient than ReLU6
-  - Decomposes to: Add(3) + ReLU6 + Mul(1/6) + Mul(x) — all TFLite Micro ops, H7-safe
-  - No extra parameters; pure activation swap
+  1. EfficientNet-style SE (stronger squeeze-excitation):
+     - 1j uses SE bottleneck = expanded_channels / 16 (weak, ~18 neurons for block 3)
+     - EfficientNet uses SE bottleneck = output_channels * 0.25 (on projected size)
+     - E.g. block 3 (out=48): bottleneck = max(1, 48*0.25) = 12 vs 1j's 18 — similar
+       but applied AFTER project (on output features, not expanded), so it gates the
+       actual block output rather than a 6× blown-up intermediate.
+     - SE position: after project (EfficientNet) vs after depthwise (1j/MBV3)
+     - All ops remain H7-compatible: GAP + Conv(1×1) × 2 + hard-sigmoid + Mul
 
-Model Architecture:
-  Conv2D(32, 3×3) + BN + ReLU6                              # Stem
-  InvRes-SE(t=1, 32→16, dw=3×3, ReLU6)  + MaxPool2D        # Block 1
-  InvRes-SE(t=6, 16→24, dw=3×3, ReLU6)  + MaxPool2D        # Block 2
-  InvRes-SE(t=6, 24→48, dw=5×5, h-swish) + MaxPool2D       # Block 3  ← hard-swish
-  InvRes-SE(t=6, 48→96, dw=5×5, h-swish) + MaxPool2D       # Block 4  ← hard-swish
-  Conv2D(320, 1×1) + BN + ReLU6                             # Last expansion
+  2. Stochastic Depth (Drop Connect on residual branch):
+     - During training: randomly zero the entire residual branch with prob=drop_rate
+     - During inference: pass-through (no cost, no ops added to TFLite graph)
+     - Implemented via a Dropout on the residual Add path (scaled correctly)
+     - Survival probability linearly decayed across blocks (0.9 → 0.8 → 0.7 → 0.6)
+     - Acts as strong regularization; proven to improve EfficientNet on small datasets
+
+Model Architecture (identical topology to 1j):
+  Conv2D(32, 3×3) + BN + ReLU6                          # Stem
+  InvRes-SE(t=1, 32→16,  dw=3×3) + MaxPool2D            # Block 1
+  InvRes-SE(t=6, 16→24,  dw=3×3) + MaxPool2D            # Block 2
+  InvRes-SE(t=6, 24→48,  dw=5×5) + MaxPool2D            # Block 3  ← 5×5
+  InvRes-SE(t=6, 48→96,  dw=5×5) + MaxPool2D            # Block 4  ← 5×5
+  Conv2D(320, 1×1) + BN + ReLU6                         # Last expansion
   GlobalAveragePooling2D
   Dense(128, relu6) + Dropout + Dense(n_classes, softmax)
 
-Target: >94% INT8 accuracy, ~270KB model size, MCU-deployable (Portenta H7)
+Target: >95% INT8 accuracy, ~270KB model size, MCU-deployable (Portenta H7)
 """
 
 print("\n\n\n")
@@ -353,7 +362,7 @@ def get_config():
 
     output_dir_name = (
         f"results_mygardenbird_1_{platform.system().lower()}/"
-        f"1p_mbv3_se_hs_"
+        f"1m_efficientnet_se_"
         f"mels{n_mels}_"
         f"drop{int(args.dropout * 100):02d}_"
         f"rand{args.random_seed}_"
@@ -383,7 +392,7 @@ def get_config():
         'input_shape': (n_mels, TIME_FRAMES, 1),
         'output_dir': output_dir_name,
         'calib_samples': args.calib_samples,
-        'model_type': 'mbv3_se_hs',
+        'model_type': 'efficientnet_se',
         'augmentation_mode': augmentation_mode,
         'mixup_alpha': args.mixup,
         'time_shift_ms': args.time_shift_ms,
@@ -415,7 +424,7 @@ class TrainingLogger:
         # Initialize log file
         with open(self.log_path, 'w') as f:
             f.write("=" * 80 + "\n")
-            f.write("MODEL 1P: MBV3-SE + Hard-Swish (blocks 3-4 expand+dw use hard-swish)\n")
+            f.write("MODEL 1Q: EfficientNet-SE (EfficientNet SE on output + stochastic depth)\n")
             f.write("=" * 80 + "\n")
             f.write(f"Training started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Platform: {platform.system()} {platform.machine()}\n")
@@ -690,7 +699,7 @@ class TrainingLogger:
             f.write("=" * 80 + "\n")
             f.write("model_type,dropout,augmentation,warmup_epochs,finetune_epochs,warmup_lr,finetune_lr,"
                     "lr_schedule,fp32_acc,int8_acc,drop,best_val_acc,train_val_gap,train_time_sec,model_size_kb\n")
-            f.write(f"1p_mbv3_se_hs,{config['dropout']},{config['augmentation_mode']},"
+            f.write(f"1m_efficientnet_se,{config['dropout']},{config['augmentation_mode']},"
                     f"{config['warmup_epochs']},{config['finetune_epochs']},{config['warmup_lr']},{config['finetune_lr']},"
                     f"{config['lr_schedule']},{fp32_acc:.2f},{int8_acc:.2f},{drop:.2f},"
                     f"{max(finetune_history.history['val_accuracy']) * 100:.2f},"
@@ -926,62 +935,47 @@ def augment_specaugment(spec):
 
 
 # --------------------------------------------------------------
-# INVERTED RESIDUAL + SE BLOCKS (Model 1p — MBV3-SE + Hard-Swish)
+# EFFICIENTNET-SE BLOCKS (Model 1m)
 # --------------------------------------------------------------
-def _hard_swish(x, name):
-    """hard_swish(x) = x * relu6(x+3)/6 — MBV3-Large activation, H7-safe."""
-    gate = layers.Lambda(
-        lambda t: tf.nn.relu6(t + 3.0) * (1.0 / 6.0),
-        name=name + '_hs_gate'
-    )(x)
-    return layers.Multiply(name=name + '_hs_mul')([x, gate])
-
-
-def se_block(x, filters, reduction=16, block_id=0):
+def se_block_efficientnet(x, out_filters, se_ratio=0.25, block_id=0):
     """
-    Squeeze-and-Excitation block with MBV3 hard-sigmoid excitation.
+    EfficientNet-style SE applied to the projected output (not expanded features).
 
-    SE = GlobalAvgPool → FC(filters/r) → ReLU → FC(filters) → HardSigmoid → Scale
+    SE bottleneck = max(1, int(out_filters * se_ratio))
+    EfficientNet uses se_ratio=0.25 on the OUTPUT channels, giving a much more
+    expressive excitation than 1j's per-expanded-channel reduction.
 
-    Hard-sigmoid (MBV3): relu6(x+3)/6
-    - Approximates sigmoid without exponential op
-    - ReLU6-based → better INT8 quantization than full sigmoid
-    - Decomposes to: Add(3) + ReLU6 + Mul(1/6) — all TFLite Micro ops
-
-    Parameter cost: 2 * filters * (filters / reduction)
-    Example: 512 channels, r=16 → 2 * 512 * 32 = 32,768 params
+    Hard-sigmoid gate: relu6(x+3)/6 — H7-safe, no exponential.
     """
     prefix = f'block{block_id}_se_'
+    hidden = max(1, int(out_filters * se_ratio))
 
-    # Squeeze: Global average pooling
     se = layers.GlobalAveragePooling2D(keepdims=True, name=prefix + 'squeeze')(x)
-
-    # Excitation: Two FC layers with bottleneck
-    se = layers.Conv2D(
-        filters // reduction, (1, 1), activation='relu',
-        use_bias=True, name=prefix + 'reduce'
-    )(se)
-    se = layers.Conv2D(
-        filters, (1, 1),
-        use_bias=True, name=prefix + 'expand'
-    )(se)
-    # Hard-sigmoid: relu6(x+3)/6  (MBV3 replacement for sigmoid)
+    se = layers.Conv2D(hidden, (1, 1), activation='relu',
+                       use_bias=True, name=prefix + 'reduce')(se)
+    se = layers.Conv2D(out_filters, (1, 1),
+                       use_bias=True, name=prefix + 'expand')(se)
     se = layers.Lambda(
         lambda t: tf.nn.relu6(t + 3.0) * (1.0 / 6.0),
         name=prefix + 'hard_sigmoid'
     )(se)
-
-    # Scale: Channel-wise multiplication
     return layers.Multiply(name=prefix + 'scale')([x, se])
 
 
-def inverted_residual_se(x, filters, kernel_size=(3, 3), strides=(1, 1),
-                         expand_ratio=6, block_id=0, se_reduction=16,
-                         activation='relu6'):
+def inverted_residual_efficientnet(x, filters, kernel_size=(3, 3), strides=(1, 1),
+                                   expand_ratio=6, block_id=0, se_ratio=0.25,
+                                   drop_rate=0.0):
     """
-    MobileNetV3-style Inverted Residual block with SE + hard-sigmoid.
-    activation: 'relu6' (blocks 1-2) or 'hard_swish' (blocks 3-4 in 1p).
-    All ops: Conv2D, DepthwiseConv2D, BatchNorm, ReLU6, Add, Mul — H7 compatible.
+    EfficientNet-style Inverted Residual block.
+
+    Changes from 1j:
+    1. SE applied AFTER project (on output channels) with se_ratio=0.25
+       — stronger, more expressive than 1j's SE on expanded features
+    2. Stochastic Depth: during training, randomly drops the entire residual
+       branch with probability drop_rate (survival = 1 - drop_rate).
+       At inference the branch is always active — zero TFLite graph impact.
+
+    All ops: Conv2D, DepthwiseConv2D, BN, ReLU6, Mul, Lambda, Add — H7-safe.
     """
     prefix = f'block{block_id}_'
     input_channels = x.shape[-1]
@@ -995,10 +989,7 @@ def inverted_residual_se(x, filters, kernel_size=(3, 3), strides=(1, 1),
         use_bias=False, name=prefix + 'expand'
     )(x)
     x = layers.BatchNormalization(name=prefix + 'expand_bn')(x)
-    if activation == 'hard_swish':
-        x = _hard_swish(x, name=prefix + 'expand')
-    else:
-        x = layers.ReLU(6., name=prefix + 'expand_relu')(x)
+    x = layers.ReLU(6., name=prefix + 'expand_relu')(x)
 
     # Depthwise (spatial)
     x = layers.DepthwiseConv2D(
@@ -1006,35 +997,38 @@ def inverted_residual_se(x, filters, kernel_size=(3, 3), strides=(1, 1),
         use_bias=False, name=prefix + 'depthwise'
     )(x)
     x = layers.BatchNormalization(name=prefix + 'depthwise_bn')(x)
-    if activation == 'hard_swish':
-        x = _hard_swish(x, name=prefix + 'depthwise')
-    else:
-        x = layers.ReLU(6., name=prefix + 'depthwise_relu')(x)
+    x = layers.ReLU(6., name=prefix + 'depthwise_relu')(x)
 
-    # SE on expanded features
-    x = se_block(x, expanded, reduction=max(1, expand_ratio * se_reduction // 16),
-                 block_id=block_id)
-
-    # Project (pointwise, no activation — MBV2 design)
+    # Project (pointwise, no activation)
     x = layers.Conv2D(
         filters, (1, 1), padding='same',
         use_bias=False, name=prefix + 'project'
     )(x)
     x = layers.BatchNormalization(name=prefix + 'project_bn')(x)
 
-    # Residual (only when spatial dims and channels match)
+    # EfficientNet SE — applied on projected output channels
+    x = se_block_efficientnet(x, filters, se_ratio=se_ratio, block_id=block_id)
+
+    # Residual with stochastic depth (only when dims match)
     if input_channels == filters and strides == (1, 1):
+        if drop_rate > 0.0:
+            # Stochastic depth: drop entire residual branch during training
+            x = layers.Dropout(drop_rate, noise_shape=(None, 1, 1, 1),
+                               name=prefix + 'stoch_depth')(x)
         x = layers.Add(name=prefix + 'residual')([x, shortcut])
 
     return x
 
 
-def create_mbv3_se_hs(num_classes, input_shape, dropout=0.2):
+def create_efficientnet_se(num_classes, input_shape, dropout=0.2):
     """
-    MBV3-SE + Hard-Swish (Model 1p).
+    EfficientNet-SE (Model 1m).
 
-    Identical to 1j except blocks 3 and 4 use hard-swish in expand+depthwise.
-    No extra parameters — pure activation swap. Same ~270 KB INT8 as 1j.
+    Based on 1j with two EfficientNet innovations:
+    1. SE on projected output (se_ratio=0.25) instead of expanded features
+    2. Stochastic depth on residual branches (drop rates 0.1→0.2→0.3→0.4)
+
+    Architecture identical to 1j — no topology change, no size increase.
     """
     inputs = layers.Input(shape=input_shape, name='input')
 
@@ -1043,31 +1037,31 @@ def create_mbv3_se_hs(num_classes, input_shape, dropout=0.2):
     x = layers.BatchNormalization(name='stem_bn')(x)
     x = layers.ReLU(6., name='stem_relu')(x)
 
-    # Block 1: t=1, 32→16, dw=3×3, ReLU6
-    x = inverted_residual_se(x, 16, kernel_size=(3, 3), block_id=1, expand_ratio=1,
-                             se_reduction=4, activation='relu6')
+    # Block 1: t=1, 32→16, dw=3×3 (no residual fires → no stochastic depth needed)
+    x = inverted_residual_efficientnet(x, 16, kernel_size=(3, 3), block_id=1,
+                                       expand_ratio=1, se_ratio=0.25, drop_rate=0.0)
     x = layers.MaxPooling2D((2, 2), name='pool1')(x)
     x = layers.Dropout(dropout * 0.5, name='drop1')(x)
 
-    # Block 2: t=6, 16→24, dw=3×3, ReLU6
-    x = inverted_residual_se(x, 24, kernel_size=(3, 3), block_id=2, expand_ratio=6,
-                             se_reduction=8, activation='relu6')
+    # Block 2: t=6, 16→24, dw=3×3 (no residual fires)
+    x = inverted_residual_efficientnet(x, 24, kernel_size=(3, 3), block_id=2,
+                                       expand_ratio=6, se_ratio=0.25, drop_rate=0.0)
     x = layers.MaxPooling2D((2, 2), name='pool2')(x)
     x = layers.Dropout(dropout * 0.5, name='drop2')(x)
 
-    # Block 3: t=6, 24→48, dw=5×5, hard-swish
-    x = inverted_residual_se(x, 48, kernel_size=(5, 5), block_id=3, expand_ratio=6,
-                             se_reduction=16, activation='hard_swish')
+    # Block 3: t=6, 24→48, dw=5×5 (no residual fires — 24≠48)
+    x = inverted_residual_efficientnet(x, 48, kernel_size=(5, 5), block_id=3,
+                                       expand_ratio=6, se_ratio=0.25, drop_rate=0.0)
     x = layers.MaxPooling2D((2, 2), name='pool3')(x)
     x = layers.Dropout(dropout * 0.75, name='drop3')(x)
 
-    # Block 4: t=6, 48→96, dw=5×5, hard-swish
-    x = inverted_residual_se(x, 96, kernel_size=(5, 5), block_id=4, expand_ratio=6,
-                             se_reduction=16, activation='hard_swish')
+    # Block 4: t=6, 48→96, dw=5×5 (no residual fires — 48≠96)
+    x = inverted_residual_efficientnet(x, 96, kernel_size=(5, 5), block_id=4,
+                                       expand_ratio=6, se_ratio=0.25, drop_rate=0.0)
     x = layers.MaxPooling2D((2, 2), name='pool4')(x)
     x = layers.Dropout(dropout, name='drop4')(x)
 
-    # Last-stage expansion: 1×1 → 320 channels before GAP
+    # Last-stage expansion
     x = layers.Conv2D(320, (1, 1), padding='same', use_bias=False, name='last_conv')(x)
     x = layers.BatchNormalization(name='last_bn')(x)
     x = layers.ReLU(6., name='last_relu')(x)
@@ -1080,7 +1074,7 @@ def create_mbv3_se_hs(num_classes, input_shape, dropout=0.2):
     x = layers.Dropout(dropout, name='fc_drop')(x)
     outputs = layers.Dense(num_classes, activation='softmax', name='output')(x)
 
-    return keras.Model(inputs, outputs, name="MynaNet_MBV3_SE_HS")
+    return keras.Model(inputs, outputs, name="MynaNet_EfficientNet_SE")
 
 
 # --------------------------------------------------------------
@@ -1744,7 +1738,7 @@ def main():
     print(f"\n{'=' * 70}")
     print("CREATING MBV3-SE MODEL (Model 1j) — 5x5 dw + hard-sigmoid SE")
     print(f"{'=' * 70}")
-    model = create_mbv3_se_hs(num_classes, config['input_shape'],
+    model = create_efficientnet_se(num_classes, config['input_shape'],
                            config['dropout'])
     model.summary()
 

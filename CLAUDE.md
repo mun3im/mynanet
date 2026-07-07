@@ -247,11 +247,11 @@ Results → `results_mygardenbird_1_{platform}/`. TCN scripts moved to `../tcn/`
 - `1i_mbv2_se.py` — trains 1i (InvRes+SE: inverted residual + channel SE, MCU compatible)
 - `1j_mbv3_se.py` — trains 1j (InvRes+HardSE+5×5DW: hard-sigmoid SE + 5×5 DW, MCU compatible, best overall)
 - `1k_mbv3_se_v2.py` — trains 1k (InvRes+HardSE+5×5DW+Stack: stacked residuals, 5th block; ~488 KB INT8)
+- `1l_mbv3_se_hs.py` — trains 1l (InvRes+HardSE+5×5DW+HSwish: hard-swish in blks 3–4; ~270 KB INT8)
+- `1m_efficientnet_se.py` — trains 1m (InvRes+OutSE: EfficientNet-style SE on output channels, se_ratio=0.25; ~220 KB INT8)
+- `1n_efficientnetb0.py` — trains 1n (EfficientNetB0 pretrained: Stage9 pipeline, n_mels=224; FP32 95.42% ceiling, INT8 91.58%, NOT MCU-deployable, 5127 KB INT8)
 - `1o_mbv3_matchbox.py` — trains 1o (1j shrunk with MatchboxNet features: FCN epilogue [no Dense-128], DW(1×17) time conv + Conv1×1(128), block 4 capped at 64ch; 120,500 params, 193.7 KB INT8, ops verified H7-safe; untrained — accuracy TBD)
-- `1p_mbv3_se_hs.py` — trains 1p (MBV3-SE + hard-swish in blks 3–4; ~270 KB INT8)
-- `1q_efficientnet_se.py` — trains 1q (EfficientNet-style SE on output channels, se_ratio=0.25; ~220 KB INT8)
-- `1r_efficientnetb0.py` — trains 1r (pretrained EfficientNetB0: Stage9 pipeline, n_mels=224; FP32 95.42% ceiling, INT8 91.58%, NOT MCU-deployable, 5127 KB INT8)
-- `run_seabird12_ablation.sh` — runs all experiments (1a–1r); supports per-model filter (1a, 1b, …, 1r)
+- `run_seabird12_ablation.sh` — runs all experiments (1a–1o); supports per-model filter (1a, 1b, …, 1o)
 
 ---
 

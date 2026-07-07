@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Model 1r — EfficientNetB0 (pretrained ImageNet, accuracy ceiling)
+Model 1n — EfficientNetB0 (pretrained ImageNet, accuracy ceiling)
 MyGardenBird 12-class bird sound classifier.
 
 NOT MCU-deployable (~5MB INT8, 10× over Portenta H7 512KB limit).
@@ -97,7 +97,7 @@ DEFAULT_FLAT_DIR   = '/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz'
 # Argument parsing
 # ---------------------------------------------------------------------------
 def get_config():
-    parser = argparse.ArgumentParser(description='Model 1r — EfficientNetB0 pretrained')
+    parser = argparse.ArgumentParser(description='Model 1n — EfficientNetB0 pretrained')
     parser.add_argument('--splits_csv',    default=DEFAULT_SPLITS_CSV)
     parser.add_argument('--flat_dir',      default=DEFAULT_FLAT_DIR)
     parser.add_argument('--n_mels',        type=int,   default=224)
@@ -124,7 +124,7 @@ def get_config():
     plat = platform.system().lower()
     out_dir = (
         f"results_mygardenbird_1_{plat}/"
-        f"1r_efficientnetb0_mels{args.n_mels}_rand{args.random_seed}"
+        f"1n_efficientnetb0_mels{args.n_mels}_rand{args.random_seed}"
         f"_{aug_mode}_split80:10:10_{plat}"
     )
     return {
@@ -399,7 +399,7 @@ def main():
     out_dir = Path(cfg['output_dir'])
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\nModel 1r — EfficientNetB0 pretrained (accuracy ceiling)")
+    print(f"\nModel 1n — EfficientNetB0 pretrained (accuracy ceiling)")
     print(f"  n_mels={cfg['n_mels']}  seed={cfg['random_seed']}  aug={cfg['aug_mode']}")
     print(f"  splits_csv: {cfg['splits_csv']}")
     print(f"  flat_dir:   {cfg['flat_dir']}")
@@ -575,7 +575,7 @@ def main():
 
     report_lines = [
         "=" * 80,
-        "MYGARDENBIRD EfficientNetB0 TRAINING REPORT (Model 1r)",
+        "MYGARDENBIRD EfficientNetB0 TRAINING REPORT (Model 1n)",
         "=" * 80,
         f"Training started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"Platform: {platform.platform()}",
@@ -588,7 +588,7 @@ def main():
         "=" * 80,
         "",
         "Model Architecture:",
-        "  Model Type:             EfficientNetB0 (pretrained ImageNet) — Model 1r",
+        "  Model Type:             EfficientNetB0 (pretrained ImageNet) — Model 1n",
         "  Backbone:               EfficientNetB0 (include_top=False, pooling='avg')",
         f"  Feature extraction:     mel {cfg['n_mels']}→dB→crop/pad 224×224→3ch→p2/p98→EffNetPrep",
         f"  Head:                   Dropout({DROPOUT1}) → Dense(256,relu) → Dropout({DROPOUT2}) → Dense({num_classes})",
@@ -668,7 +668,7 @@ def main():
         f.write('\n'.join(report_lines))
 
     print(f"\n{'=' * 80}")
-    print(f"TRAINING COMPLETE — Model 1r (EfficientNetB0 pretrained)")
+    print(f"TRAINING COMPLETE — Model 1n (EfficientNetB0 pretrained)")
     print(f"  FP32 Test Accuracy:  {fp32_acc * 100:.2f}%")
     if int8_acc is not None:
         print(f"  INT8 Test Accuracy:  {int8_acc * 100:.2f}%  ({tflite_kb:.1f} KB)")
