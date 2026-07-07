@@ -1,4 +1,0 @@
-[2026-06-16 17:29:20] ===== START remaining CPU runs (env=tf215_cpu) =====
-[2026-06-16 17:29:20] >>> Series 3 (MobileNetV3Small width sweep)
-[2026-06-16 17:30:30] <<< Series 3 done (exit 0)
-[2026-06-16 17:30:30] >>> 1j training ablation (aug x split)

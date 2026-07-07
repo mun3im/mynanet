@@ -26,21 +26,53 @@ tf215_gpu conda env.
 from __future__ import annotations
 import argparse
 import csv
+import os
+import re
 from pathlib import Path
 import statistics
 import sys
 
-DEFAULT_CLIPS_CSV  = Path("/Volumes/Evo/MYGARDENBIRD/metadata16khz/clips.csv")
-DEFAULT_SPLITS_CSV = Path("/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv")
-DEFAULT_FLAT_DIR   = Path("/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz")
-RESULTS_ROOT = Path("/Users/mun3im/Dropbox/Conda/mynanet/results_mygardenbird_1_linux")
+
+def load_model_classes(report_path: Path) -> list[str]:
+    """Recover the model's class-index order from its sklearn classification
+    report (the order rows appear in == the label-index order the model was
+    trained with). This is NOT alphabetical, so it must not be reconstructed
+    from sorted directory names."""
+    classes = []
+    row_re = re.compile(
+        r"^\s*(.+?)\s+[01]\.\d{3,4}\s+[01]\.\d{3,4}\s+[01]\.\d{3,4}\s+\d+\s*$")
+    for line in report_path.read_text().splitlines():
+        m = row_re.match(line)
+        if not m:
+            continue
+        name = m.group(1).strip()
+        if name not in ("accuracy", "macro avg", "weighted avg"):
+            classes.append(name)
+    return classes
+
+DEFAULT_CLIPS_CSV  = Path(os.environ.get("CLIPS_CSV",  "/Volumes/Evo/MYGARDENBIRD/metadata16khz/clips.csv"))
+DEFAULT_SPLITS_CSV = Path(os.environ.get("SPLITS_CSV", "/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv"))
+DEFAULT_FLAT_DIR   = Path(os.environ.get("FLAT_DIR",   "/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"))
+# Portable results root: next to this script's parent, env-overridable.
+RESULTS_ROOT = Path(
+    os.environ.get(
+        "RESULTS_ROOT_1",
+        Path(__file__).resolve().parents[1] / "results_mygardenbird_1_linux",
+    )
+)
 
 
 def load_clip_snr(clips_csv: Path) -> dict[str, float]:
     snr = {}
     with clips_csv.open() as f:
         for row in csv.DictReader(f):
-            snr[row["file_id"]] = float(row["snr_db"])
+            raw = (row.get("snr_db") or "").strip()
+            if raw == "":
+                continue  # some clips have no SNR estimate; skip them
+            try:
+                snr[row["file_id"]] = float(raw)
+            except ValueError:
+                continue
     return snr
 
 
@@ -84,6 +116,10 @@ def find_tflite(model: str, seed: int) -> Path | None:
             continue
         if "split80" not in n:
             continue
+        # Canonical config used throughout the paper: 64 mels + mixup 0.2
+        # (the front-end here generates 64-mel specs, so the model must match).
+        if "mels64" not in n or "mixup0.2" not in n or "specaugment" in n:
+            continue
         for tf in d.glob("*int8*.tflite"):
             return tf
     return None
@@ -105,6 +141,18 @@ def main():
               file=sys.stderr)
         sys.exit(1)
     print(f"Using INT8 model: {tflite_path}")
+
+    # Recover the model's class-index order from the sibling classification
+    # report — the prediction argmax indexes into THIS list, not the
+    # alphabetically-sorted directory names (which gives a label permutation
+    # and ~0% accuracy).
+    report_path = tflite_path.parent / "classification_report_int8.txt"
+    model_classes = load_model_classes(report_path) if report_path.exists() else []
+    if len(model_classes) != 12:
+        print(f"✗ could not recover 12-class order from {report_path}",
+              file=sys.stderr)
+        sys.exit(1)
+    print(f"  model class order: {model_classes}")
 
     # Import TF lazily; pipeline must run inside tf215_gpu env
     import numpy as np
@@ -171,7 +219,7 @@ def main():
         interp.invoke()
         logits = interp.get_tensor(out_d['index'])[0]
         pred_idx = int(np.argmax(logits))
-        pred_sp = species[pred_idx]
+        pred_sp = model_classes[pred_idx]
         clip_snr = snr.get(fid, snr.get(fid.upper()))
         out_rows.append({
             "file_id":   fid,

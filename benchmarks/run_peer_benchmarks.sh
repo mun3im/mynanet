@@ -38,8 +38,8 @@
 
 set -euo pipefail
 
-SPLITS_CSV="/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv"
-FLAT_DIR="/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"
+SPLITS_CSV="${SPLITS_CSV:-/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv}"
+FLAT_DIR="${FLAT_DIR:-/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz}"
 # SEEDS can be overridden via env var, e.g. SEEDS="42" bash run_peer_benchmarks.sh
 if [[ -n "${SEEDS:-}" ]]; then
     # shellcheck disable=SC2206

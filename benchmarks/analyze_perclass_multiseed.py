@@ -15,13 +15,22 @@ Usage:
     python3 analyze_perclass_multiseed.py 1e 1i 1p          # multiple models
 """
 from __future__ import annotations
+import os
 import re
 import sys
 from pathlib import Path
 import statistics
 
-RESULTS_ROOT = Path("/Users/mun3im/Dropbox/Conda/mynanet/results_mygardenbird_1_linux")
-SEEDS = (42, 100, 786)
+# Portable: default to the results tree next to this script's parent
+# (Conda/mynanet/results_mygardenbird_1_linux), overridable via env var so
+# the same script works on the macOS laptop and the Linux/CUDA box.
+RESULTS_ROOT = Path(
+    os.environ.get(
+        "RESULTS_ROOT_1",
+        Path(__file__).resolve().parents[1] / "results_mygardenbird_1_linux",
+    )
+)
+SEEDS = (42, 100, 786, 7, 2024)  # extended to n=5 for the friendly-R2 E2 hardening
 
 MODEL_DIR_PATTERN = {
     "1a": "1a_baseline_standardcnn_mels64_drop05_rand{seed}_warm70_mixup0.2_split80_10_10_linux",
