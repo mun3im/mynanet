@@ -20,9 +20,15 @@
 
 set -euo pipefail
 
-SPLITS_CSV="/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv"
-FLAT_DIR="/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz"
-SEEDS=(42 100 786)
+SPLITS_CSV="${SPLITS_CSV:-/Volumes/Evo/MYGARDENBIRD/metadata16khz/splits_mip_80_10_10.csv}"
+FLAT_DIR="${FLAT_DIR:-/Volumes/Evo/MYGARDENBIRD/mygardenbird16khz}"
+# SEEDS overridable via env var, e.g. SEEDS="7 2024" bash run_seabird12_ablation.sh 1j
+if [[ -n "${SEEDS:-}" ]]; then
+    # shellcheck disable=SC2206
+    SEEDS=($SEEDS)
+else
+    SEEDS=(42 100 786)
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 COMMON_ARGS=(
@@ -179,6 +185,14 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1n" ]]; then
             --n_mels 224 \
             --mixup 0.2 \
             --random_seed "$seed"
+    done
+fi
+
+if [[ "$FILTER" == "all" || "$FILTER" == "1o" ]]; then
+    echo ""
+    echo "▶▶▶  1o: MBV3-Matchbox (1j + MatchboxNet FCN epilogue, block4=64, ~194 KB INT8)"
+    for seed in "${SEEDS[@]}"; do
+        run_one "1o_mbv3_matchbox.py" "1o_mbv3_matchbox" "$seed"
     done
 fi
 
