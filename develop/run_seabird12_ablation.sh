@@ -125,7 +125,7 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1i" ]]; then
     echo ""
     echo "▶▶▶  1i: MBV2-style Inverted Residual + SE (MCU compatible)"
     for seed in "${SEEDS[@]}"; do
-        run_one "1i_mbv2_se.py" "1i_mbv2_se" "$seed"
+        run_one "1i_inverted_residual.py" "1i_inverted_residual" "$seed"
     done
 fi
 
@@ -133,7 +133,7 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1j" ]]; then
     echo ""
     echo "▶▶▶  1j: MBV3-SE (5x5 dw blocks 3-4, hard-sigmoid SE, MCU compatible)"
     for seed in "${SEEDS[@]}"; do
-        run_one "1j_mbv3_se.py" "1j_mbv3_se" "$seed"
+        run_one "1j_hardsigmoid_5x5dw.py" "1j_hardsigmoid_5x5dw" "$seed"
     done
 fi
 
@@ -159,7 +159,7 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1l" ]]; then
     echo ""
     echo "▶▶▶  1l: InvRes+HardSE+5×5DW+HSwish (1j + hard-swish in blocks 3-4, same size)"
     for seed in "${SEEDS[@]}"; do
-        run_one "1l_mbv3_se_hs.py" "1l_mbv3_se_hs" "$seed"
+        run_one "1l_hardswish_ablation.py" "1l_hardswish_ablation" "$seed"
     done
 fi
 
@@ -167,24 +167,23 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1m" ]]; then
     echo ""
     echo "▶▶▶  1m: InvRes+OutSE (EfficientNet-style SE on output channels, se_ratio=0.25)"
     for seed in "${SEEDS[@]}"; do
-        run_one "1m_efficientnet_se.py" "1m_efficientnet_se" "$seed"
+        run_one "1m_se_stochdepth.py" "1m_se_stochdepth" "$seed"
     done
 fi
 
+# NOTE: the "1n" slot previously held EfficientNetB0 pretrained ceiling,
+# dropped from this ablation runner (2026-07-28) -- it isn't an ablation
+# step in the MynaNet 1-series sense. That benchmark still exists as its
+# own script, benchmarks/effnetb0_pretrained_ceiling.py, run via
+# Paper4_MynaNet_TECS/run_ceiling_rerun.sh instead of this ablation runner.
+# The "1n" slot has been reassigned (2026-07-28) to the WrenNet-inspired
+# learnable frequency warping model, previously unrun under the "1p" name.
+
 if [[ "$FILTER" == "all" || "$FILTER" == "1n" ]]; then
     echo ""
-    echo "▶▶▶  1n: EfficientNetB0 pretrained (accuracy ceiling, NOT MCU-deployable)"
+    echo "▶▶▶  1n: WrenNet-inspired learnable frequency warp (1j blocks + 1o epilogue, learned breakpoint/width)"
     for seed in "${SEEDS[@]}"; do
-        echo ""
-        echo "════════════════════════════════════════════════════"
-        echo "  1n_efficientnetb0  seed=$seed"
-        echo "════════════════════════════════════════════════════"
-        conda run -n tf215_gpu python3 "$SCRIPT_DIR/1n_efficientnetb0.py" \
-            --splits_csv "$SPLITS_CSV" \
-            --flat_dir   "$FLAT_DIR" \
-            --n_mels 224 \
-            --mixup 0.2 \
-            --random_seed "$seed"
+        run_one "1n_learnable_freq_warp.py" "1n_learnable_freq_warp" "$seed"
     done
 fi
 
@@ -192,7 +191,7 @@ if [[ "$FILTER" == "all" || "$FILTER" == "1o" ]]; then
     echo ""
     echo "▶▶▶  1o: MBV3-Matchbox (1j + MatchboxNet FCN epilogue, block4=64, ~194 KB INT8)"
     for seed in "${SEEDS[@]}"; do
-        run_one "1o_mbv3_matchbox.py" "1o_mbv3_matchbox" "$seed"
+        run_one "1o_fcn_epilogue.py" "1o_fcn_epilogue" "$seed"
     done
 fi
 

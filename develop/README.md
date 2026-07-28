@@ -23,14 +23,13 @@ All scripts share the same training protocol and can be run individually or via 
 | `1f_dscnn_se_res_wide.py` | 1f | DS-CNN + SE + Res + Wide channels | 455.3 | 93.61 | ✓ |
 | `1g_dscnn_se_res_att.py` | 1g | DS-CNN + SE + Res + Attention | 371.8 | 94.21 | ✗ (BATCH_MATMUL) |
 | `1h_dscnn_se_res_att_wide.py` | 1h | DS-CNN + SE + Res + Att + Wide | 529.3 | 93.89 | ✗ (over limit + BATCH_MATMUL) |
-| `1i_mbv2_se.py` | 1i | InvRes + SE (MobileNetV2-style) | 258.7 | 94.03 | ✓ |
-| `1j_mbv3_se.py` | 1j | InvRes + HardSE + 5×5 DW **(MynaNet)** | 267.1 | **94.91** | ✓ |
-| `1k_mbv3_se_v2.py` | 1k | 1j + stacked residuals, 5th block | 650.0 | 93.75 | ✗ (over limit) |
-| `1l_mbv3_se_hs.py` | 1l | 1j + hard-swish in blocks 3–4 | 269.3 | 94.68 | ✓ |
-| `1m_efficientnet_se.py` | 1m | InvRes + output-channel SE (se_ratio=0.25) | 219.9 | 94.35 | ✓ |
-| `1n_efficientnetb0.py` | 1n | EfficientNetB0 pretrained (accuracy ceiling) | 5126.6 | 91.58† | ✗ (10× over limit) |
+| `1i_inverted_residual.py` | 1i | InvRes + SE (MobileNetV2-style) | 258.7 | 94.03 | ✓ |
+| `1j_hardsigmoid_5x5dw.py` | 1j | InvRes + HardSE + 5×5 DW **(MynaNet)** | 267.1 | **94.91** | ✓ |
+| `1k_stacked_residual_hswish.py` | 1k | 1j + stacked residuals, 5th block | 650.0 | 93.75 | ✗ (over limit) |
+| `1l_hardswish_ablation.py` | 1l | 1j + hard-swish in blocks 3–4 | 269.3 | 94.68 | ✓ |
+| `1m_se_stochdepth.py` | 1m | InvRes + output-channel SE (se_ratio=0.25) | 219.9 | 94.35 | ✓ |
+| `1n_learnable_freq_warp.py` | 1n | WrenNet-inspired learnable frequency warp (1j blocks + 1o epilogue) | 225.0 | 93.28 | ✓ |
 
-> † 1n FP32 = 95.42% (dataset ceiling); INT8 drops 3.8 pp due to swish quantization  
 > MCU ✓ = TFLite Micro compatible on Portenta H7 (≤512 KB flash, no BATCH_MATMUL)
 
 ## Running
@@ -57,4 +56,5 @@ Results are written to `results_mygardenbird_1_{darwin|linux}/`.
 - **Attention ceiling (1g)**: +0.09 pp over 1e, not H7-deployable (BATCH_MATMUL)
 - **Width (1f)**: no gain without attention
 - **Hard-swish (1l)**: −0.23 pp vs 1j; ReLU6-based hard-sigmoid in 1j quantizes better
-- **1n (EfficientNetB0)**: highest FP32 (95.42%) but INT8 collapses 3.8 pp — 267 KB 1j beats 5 MB pretrained model post-quantization
+- **EfficientNetB0 ceiling** (`benchmarks/effnetb0_pretrained_ceiling.py`, no longer under a 1-series ID): highest FP32 (95.42%) but INT8 collapses 3.8 pp — 267 KB 1j beats 5 MB pretrained model post-quantization
+- **1n (WrenNet learnable freq warp)**: 93.28 ± 0.75% INT8 (5 seeds: 7/42/100/786/2020), 225.0 KB, H7-deployable — below 1j/1o/1l/1e, reassigned from the abandoned "1p" slot (2026-07-28)
