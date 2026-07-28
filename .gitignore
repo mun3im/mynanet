@@ -1,1 +1,6 @@
 CLAUDE.md
+.obsidian/
+.claude/
+*.keras
+*.h5
+results_mygardenbird_1_linux/
